@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -96,12 +97,14 @@ fun SpotifyLibraryScreen(
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var refreshCounter by remember { mutableIntStateOf(0) }
+    var lastHandledRefresh by remember { mutableIntStateOf(0) }
     BackHandler(enabled = showLogin) { showLogin = false }
 val cacheAccountKey = remember(cookie) {
     cookie.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
 }
     
-LaunchedEffect(cookie, cacheAccountKey) {
+LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
     val accountKey = cacheAccountKey
 
     if (cookie.isBlank() || accountKey == null) {
@@ -113,10 +116,13 @@ LaunchedEffect(cookie, cacheAccountKey) {
 
     // Show saved playlists immediately. A fresh cache is a complete answer:
     // opening this tab repeatedly should not spend mobile data on the same pages.
+    // A deliberate refresh bypasses the TTL so external Spotify edits can be pulled in.
+    val manualRefresh = refreshCounter != lastHandledRefresh
+    lastHandledRefresh = refreshCounter
     val cachedPlaylists = SpotifyLibraryCache.getPlaylists(accountKey)
     playlists = cachedPlaylists.orEmpty()
     error = null
-    if (cachedPlaylists != null && SpotifyLibraryCache.arePlaylistsFresh(accountKey)) {
+    if (!manualRefresh && cachedPlaylists != null && SpotifyLibraryCache.arePlaylistsFresh(accountKey)) {
         loading = false
         return@LaunchedEffect
     }
@@ -174,6 +180,10 @@ LaunchedEffect(cookie, cacheAccountKey) {
                     style = MaterialTheme.typography.displayLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { refreshCounter++ }, enabled = !loading) {
+                    Text("Refresh")
+                }
             }
         }
         if (cookie.isBlank()) {
