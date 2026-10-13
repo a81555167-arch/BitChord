@@ -4698,7 +4698,7 @@ private fun BitChordApp(
                         viewModel.renamePlaylist(p, name)
                     }
                 },
-                onReorder = playlist?.takeIf { !it.playlistId.startsWith("spotify:") }?.let { p ->
+                onReorder = playlist?.let { p ->
                     {
                         browseActions = null
                         reorderTarget = p
