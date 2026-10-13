@@ -148,6 +148,7 @@ import com.music.bitchord.data.scrobbling.LastFM
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.LibrarySort
 import com.music.bitchord.data.settings.ThemeMode
+import com.music.bitchord.data.settings.BrandTheme
 import com.music.bitchord.ui.components.AccountProfileSelector
 import com.music.bitchord.ui.components.SpotifyImportAlert
 import com.music.bitchord.ui.screens.AccountAndScrobblingScreen
@@ -343,6 +344,7 @@ class MainActivity : AppCompatActivity() {
         MusicLink.consume(intent)
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
+            val brandTheme by AppSettings.brandTheme.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             val liquidGlassEnabled by AppSettings.liquidGlass.collectAsStateWithLifecycle()
             val iosOverscrollFactory = rememberIosOverscrollFactory()
@@ -356,7 +358,7 @@ class MainActivity : AppCompatActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            BitChordTheme(darkTheme = darkTheme) {
+            BitChordTheme(darkTheme = darkTheme, brandTheme = brandTheme) {
                 // The glass surfaces sample this layer, and a layer records only
                 // what is drawn into it — which, for BitChord, is a page that
                 // paints no background of its own. Everywhere a page is not
