@@ -21,6 +21,7 @@ object SpotifyLibraryCache {
     private const val TRACK_TTL_MS = 7L * 24 * 60 * 60 * 1000
     // Back off failed Home API calls without pretending an error is a valid empty feed.
     private const val FEED_FAILURE_TTL_MS = 15L * 60 * 1000
+    private const val DISCOVERY_FEED_TTL_MS = 6L * 60 * 60 * 1000
     private const val TABLE = "cache_entries"
     private const val KEY_COLUMN = "cache_key"
     private const val VALUE_COLUMN = "cache_value"
@@ -200,6 +201,65 @@ object SpotifyLibraryCache {
             )
         }.getOrNull()
     }
+
+    /** Persist Spotify Home/Explore sections independently from playlist metadata. */
+    fun saveFeedSections(accountKey: String, feedId: String, sections: List<SpotifyFeedSection>) {
+        val array = JSONArray()
+        sections.forEach { section ->
+            val items = JSONArray()
+            section.items.forEach { item ->
+                items.put(
+                    JSONObject()
+                        .put("uri", item.uri)
+                        .put("title", item.title)
+                        .putNullable("subtitle", item.subtitle)
+                        .putNullable("imageUrl", item.imageUrl)
+                        .put("kind", item.kind)
+                )
+            }
+            array.put(
+                JSONObject()
+                    .put("id", section.id)
+                    .put("title", section.title)
+                    .put("items", items)
+            )
+        }
+        val key = discoveryFeedKey(accountKey, feedId)
+        write(key, array.toString())
+        markFresh(key)
+    }
+
+    fun getFeedSections(accountKey: String, feedId: String): List<SpotifyFeedSection>? {
+        val cached = read(discoveryFeedKey(accountKey, feedId)) ?: return null
+        return runCatching {
+            val array = JSONArray(cached)
+            List(array.length()) { sectionIndex ->
+                val section = array.getJSONObject(sectionIndex)
+                val itemsArray = section.getJSONArray("items")
+                val items = List(itemsArray.length()) { itemIndex ->
+                    val item = itemsArray.getJSONObject(itemIndex)
+                    SpotifyFeedItem(
+                        uri = item.getString("uri"),
+                        title = item.getString("title"),
+                        subtitle = item.nullableString("subtitle"),
+                        imageUrl = item.nullableString("imageUrl"),
+                        kind = item.optString("kind", "item"),
+                    )
+                }
+                SpotifyFeedSection(
+                    id = section.getString("id"),
+                    title = section.getString("title"),
+                    items = items,
+                )
+            }
+        }.getOrNull()
+    }
+
+    fun areFeedSectionsFresh(accountKey: String, feedId: String): Boolean =
+        isFresh(discoveryFeedKey(accountKey, feedId), DISCOVERY_FEED_TTL_MS)
+
+    private fun discoveryFeedKey(accountKey: String, feedId: String) =
+        "discovery-feed:$accountKey:$feedId"
 
     /** Drop the account's cached playlist list after a rename or other library edit. */
     fun invalidatePlaylists(accountKey: String) {
