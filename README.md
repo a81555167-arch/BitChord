@@ -9,6 +9,8 @@
 
 ### Spotify Library & Discovery Client
 
+Spotify is used for library synchronization and Home/Explore discovery. Music playback is resolved through the existing BitChord sources, not Spotify streaming.
+
 <br/>
 
 [![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
