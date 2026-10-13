@@ -363,13 +363,13 @@ class MainActivity : AppCompatActivity() {
                 val selectedAlias = aliasNames.getValue(brandTheme)
                 // Enable first, then disable the others, so a launcher always has an icon.
                 appContext.packageManager.setComponentEnabledSetting(
-                    ComponentName(packageName, "$packageName.$selectedAlias"),
+                    ComponentName(appContext.packageName, "$packageName.$selectedAlias"),
                     PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                     PackageManager.DONT_KILL_APP,
                 )
                 aliasNames.values.filterNot { it == selectedAlias }.forEach { alias ->
                     appContext.packageManager.setComponentEnabledSetting(
-                        ComponentName(packageName, "$packageName.$alias"),
+                        ComponentName(appContext.packageName, "$packageName.$alias"),
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                         PackageManager.DONT_KILL_APP,
                     )
