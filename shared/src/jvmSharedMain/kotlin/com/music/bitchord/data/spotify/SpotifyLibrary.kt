@@ -113,6 +113,33 @@ object SpotifyLibrary {
         collected
     }
 
+    /**
+     * Save/remove a track in Spotify's Liked Songs through the Web API.
+     *
+     * The current Web Player session may not carry the required library-modify
+     * scope; in that case this throws a useful error instead of pretending the
+     * heart synced successfully.
+     */
+    suspend fun setLiked(trackId: String, liked: Boolean) = withContext(Dispatchers.IO) {
+        require(trackId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify track id" }
+        val headers = authHeaders()
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/me/tracks?ids=$trackId")
+            .apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                if (liked) put(ByteArray(0).toRequestBody(mediaType))
+                else delete(ByteArray(0).toRequestBody(mediaType))
+            }
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not update Liked Songs (\u0024{response.code}). The connected session may not allow library edits."
+                )
+            }
+        }
+    }
+
     private fun playlistPage(headers: Map<String, String>, offset: Int): Triple<List<SpotifyPlaylist>, Int, Int> {
         val variables = buildJsonObject {
             putJsonArray("filters") { add("Playlists") }
