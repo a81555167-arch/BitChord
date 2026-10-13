@@ -1,0 +1,42 @@
+name: SpotiChord Android APK
+
+on:
+  push:
+    branches:
+      - feature/spotichord-client
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spotichord-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-spotichord-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout isolated discovery branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build SpotiChord arm64 debug APK
+        run: ./gradlew :app:assembleProdDebug
+
+      - name: Upload SpotiChord APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotichord-arm64-v8a-debug
+          path: app/build/outputs/apk/prod/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
