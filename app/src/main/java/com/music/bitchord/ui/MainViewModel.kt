@@ -729,6 +729,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _spotifyLikedTrackIds.update { current ->
                         if (wasLiked) current - trackId else current + trackId
                     }
+                    val accountKey = AppSettings.spotifySpdcToken.value
+                        .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                    if (accountKey != null) {
+                        SpotifyLibraryCache.invalidateTracks(accountKey, SpotifyLibrary.LIKED_ID)
+                    }
                 }
                 .onFailure { failure ->
                     Toast.makeText(
@@ -1370,9 +1375,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         _spotifyLikedTrackIds.value = tracks.mapTo(mutableSetOf()) { it.id }
                     }
                     tracks.map { track ->
-                        accountKey?.let {
+                        val cachedMatch = accountKey?.let {
                             SpotifyLibraryCache.getMatchedSong(it, spotifyPlaylistId, track.id)
-                        } ?: null ?: Song(
+                        }
+                        cachedMatch?.copy(spotifyTrackId = track.id) ?: Song(
                             videoId = SPOTIFY_PENDING_PREFIX + track.id,
                             title = track.title,
                             artist = track.artist,
@@ -3047,12 +3053,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             } else {
                                 null
                             }
-                            val match = cachedMatch ?: matchResult?.getOrNull()?.copy(
-                                thumbnailUrl = matchResult.getOrNull()?.thumbnailUrl ?: track.imageUrl,
+                            val match = (
+                                cachedMatch ?: matchResult?.getOrNull() ?: track.asPendingSong().let {
+                                    it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
+                                }
+                            ).copy(
+                                thumbnailUrl = cachedMatch?.thumbnailUrl
+                                    ?: matchResult?.getOrNull()?.thumbnailUrl
+                                    ?: track.imageUrl,
                                 spotifyTrackId = track.id,
-                            ) ?: track.asPendingSong().let {
-                                it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
-                            }
+                            )
                             // Cache successful matches and confirmed misses; a transient request
                             // failure is not persisted, so it can be retried on the next open.
                             if (cachedMatch == null && matchResult?.isSuccess == true && accountKey != null) {
