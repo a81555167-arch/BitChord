@@ -4204,7 +4204,11 @@ private fun BitChordApp(
             // "Remove from this playlist" is only a sentence on a playlist
             // page the account can actually edit, and only for a row that
             // carries the per-entry id a removal is expressed in.
-            val editable = viewModel.editablePlaylist(detail?.browseId)
+            val currentBrowseId = detail?.browseId
+            val spotifyEditable = !fromPlayer &&
+                currentBrowseId?.startsWith(SPOTIFY_PAGE_PREFIX) == true &&
+                song.spotifyTrackId != null
+            val editable = viewModel.editablePlaylist(currentBrowseId)
                 ?.takeIf { !fromPlayer && song.setVideoId != null }
             SongActionsSheet(
                 song = song,
@@ -4257,10 +4261,18 @@ private fun BitChordApp(
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 },
-                onRemoveFromPlaylist = editable?.let {
-                    {
-                        songActions = null
-                        viewModel.removeFromPlaylist(it.browseId, song)
+                onRemoveFromPlaylist = when {
+                    spotifyEditable -> {
+                        {
+                            songActions = null
+                            currentBrowseId?.let { viewModel.removeFromPlaylist(it, song) }
+                        }
+                    }
+                    else -> editable?.let { playlist ->
+                        {
+                            songActions = null
+                            viewModel.removeFromPlaylist(playlist.browseId, song)
+                        }
                     }
                 },
                 onOpenAlbum = { id ->
