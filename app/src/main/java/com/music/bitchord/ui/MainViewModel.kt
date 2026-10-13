@@ -1660,6 +1660,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _spotifyLikedTrackIds.value = cachedLiked.orEmpty().mapTo(mutableSetOf()) { it.id }
             }
         }
+        // Spotify may be connected after the first Home request has already completed.
+        // Re-fetch Home when the linked Spotify session changes so its cached/personalized
+        // shelves are actually requested immediately after login or disconnect.
+        viewModelScope.launch {
+            AppSettings.spotifySpdcToken.drop(1).distinctUntilChanged().collect {
+                loadHome()
+            }
+        }
         loadHome()
         loadExplore()
         if (_signedIn.value) {
