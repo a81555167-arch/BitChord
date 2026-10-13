@@ -1,6 +1,7 @@
 package com.music.bitchord
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -345,6 +346,30 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val brandTheme by AppSettings.brandTheme.collectAsStateWithLifecycle()
+            val appContext = LocalContext.current
+            LaunchedEffect(brandTheme, appContext) {
+                val aliasNames = mapOf(
+                    BrandTheme.CLASSIC to "LauncherClassic",
+                    BrandTheme.APPLE_MUSIC to "LauncherAppleMusic",
+                    BrandTheme.TIDAL to "LauncherTidal",
+                    BrandTheme.SPOTIFY to "LauncherSpotify",
+                )
+                val packageName = MainActivity::class.java.packageName
+                val selectedAlias = aliasNames.getValue(brandTheme)
+                // Enable first, then disable the others, so a launcher always has an icon.
+                appContext.packageManager.setComponentEnabledSetting(
+                    ComponentName(packageName, "$packageName.$selectedAlias"),
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP,
+                )
+                aliasNames.values.filterNot { it == selectedAlias }.forEach { alias ->
+                    appContext.packageManager.setComponentEnabledSetting(
+                        ComponentName(packageName, "$packageName.$alias"),
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP,
+                    )
+                }
+            }
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             val liquidGlassEnabled by AppSettings.liquidGlass.collectAsStateWithLifecycle()
             val iosOverscrollFactory = rememberIosOverscrollFactory()
