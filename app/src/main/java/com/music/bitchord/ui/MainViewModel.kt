@@ -731,6 +731,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     val accountKey = AppSettings.spotifySpdcToken.value
                         .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                    val cachedLikedIsFresh = accountKey?.let {
+                        SpotifyLibraryCache.areTracksFresh(it, SpotifyLibrary.LIKED_ID)
+                    } == true
                     val cachedLiked = accountKey?.let {
                         SpotifyLibraryCache.getTracks(it, SpotifyLibrary.LIKED_ID)
                     }
@@ -750,7 +753,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 ),
                             ) + withoutTrack
                         }
-                        SpotifyLibraryCache.saveTracks(accountKey, SpotifyLibrary.LIKED_ID, updated)
+                        SpotifyLibraryCache.saveTracks(
+                            accountKey,
+                            SpotifyLibrary.LIKED_ID,
+                            updated,
+                            markAsFresh = cachedLikedIsFresh,
+                        )
                     }
                 }
                 .onFailure { failure ->
