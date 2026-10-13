@@ -964,7 +964,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         song: Song,
         onResult: (added: Int, alreadyThere: Int, failed: Int) -> Unit = { _, _, _ -> },
     ) {
-        if (!requireSignIn() || playlists.isEmpty()) return
+        if (playlists.isEmpty()) return
+        if (playlists.any { !it.playlistId.startsWith("spotify:") } && !requireSignIn()) return
         viewModelScope.launch {
             val outcomes = playlists.map { addOne(it, song) }
             onResult(
@@ -978,6 +979,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
 
     private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
+        if (playlist.playlistId.startsWith("spotify:")) {
+            val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
+            val accountKey = AppSettings.spotifySpdcToken.value
+                .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+            val cachedTracks = accountKey?.let {
+                SpotifyLibraryCache.getTracks(it, spotifyPlaylistId)
+            }
+            if (cachedTracks?.any { track ->
+                    (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
+                        (track.title.equals(song.title, ignoreCase = true) &&
+                            track.artist.equals(song.artist, ignoreCase = true))
+                } == true
+            ) return AddOutcome.ALREADY_THERE
+
+            return runCatching {
+                if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                    SpotifyLibrary.setLikedTrack(song.spotifyTrackId, song.title, song.artist, liked = true)
+                } else {
+                    SpotifyLibrary.addTrackToPlaylist(
+                        playlistId = spotifyPlaylistId,
+                        spotifyTrackId = song.spotifyTrackId,
+                        title = song.title,
+                        artist = song.artist,
+                    )
+                }
+            }.fold(
+                onSuccess = {
+                    if (accountKey != null) {
+                        SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
+                    }
+                    song.spotifyTrackId?.let { trackId ->
+                        if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                            _spotifyLikedTrackIds.update { it + trackId }
+                        }
+                    }
+                    AddOutcome.ADDED
+                },
+                onFailure = { AddOutcome.FAILED },
+            )
+        }
         val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
             ?.songs as? UiState.Success)?.data
         val known = openSongs
