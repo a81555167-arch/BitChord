@@ -1,0 +1,62 @@
+name: BitChord ARM64 Debug APK
+
+on:
+  push:
+    branches:
+      - feature/spotify-library-cache
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitChord-arm64-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: gradle
+
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 17 preview platform
+        run: sdkmanager --channel=3 "platforms;android-37.0"
+
+      - name: Create local properties
+        run: |
+          echo "LASTFM_API_KEY=" > local.properties
+          echo "LASTFM_SECRET=" >> local.properties
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Compile production debug Kotlin
+        run: ./gradlew :app:compileProdDebugKotlin --stacktrace
+
+      - name: Run shared JVM tests
+        run: ./gradlew :shared:jvmTest --stacktrace
+
+      - name: Run Android app unit tests
+        run: ./gradlew :app:testProdDebugUnitTest --stacktrace
+
+      - name: Assemble production debug APK
+        run: ./gradlew :app:assembleProdDebug --stacktrace
+
+      - name: Upload single arm64-v8a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-arm64-v8a-debug
+          path: app/build/outputs/apk/prod/debug/app-prod-arm64-v8a-debug.apk
+          if-no-files-found: error
+          retention-days: 7
