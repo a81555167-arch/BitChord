@@ -1,5 +1,6 @@
 package com.music.bitchord.ui
-
+import com.music.bitchord.data.spotify.SpotifyLibraryCache
+import java.security.MessageDigest
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -2637,14 +2638,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
                 }
             }
-            val tracks = runCatching {
-                SpotifyLibrary.tracks(playlistId) { soFar ->
-                    setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
-                }
-            }.getOrElse {
-                setSongs(UiState.Error(it.message ?: text(R.string.failed)))
-                return@launch
-            }
+            
+val accountKey = AppSettings.spotifySpdcToken.value
+    .takeIf { it.isNotBlank() }
+    ?.let(::spotifyCacheAccountKey)
+
+val cachedTracks = accountKey
+    ?.let { SpotifyLibraryCache.getTracks(it, playlistId) }
+    .orEmpty()
+
+// Display saved tracks immediately while the network refresh runs.
+if (cachedTracks.isNotEmpty()) {
+    setSongs(UiState.Success(cachedTracks.map { it.asPendingSong() }))
+}
+
+val freshResult = runCatching {
+    SpotifyLibrary.tracks(playlistId) { soFar ->
+        setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
+    }
+}
+
+val tracks = freshResult.getOrElse { failure ->
+    if (cachedTracks.isNotEmpty()) {
+        cachedTracks
+    } else {
+        setSongs(UiState.Error(failure.message ?: text(R.string.failed)))
+        return@launch
+    }
+}
+
+if (freshResult.isSuccess && accountKey != null) {
+    SpotifyLibraryCache.saveTracks(accountKey, playlistId, tracks)
+}
+
             if (tracks.isEmpty()) {
                 setSongs(UiState.Error(text(R.string.spotify_empty_tracks)))
                 return@launch
