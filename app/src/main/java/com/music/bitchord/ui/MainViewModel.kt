@@ -1347,6 +1347,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * see [YtMusicRepository.playlistEntries] for why not the open page's list.
      */
     fun loadPlaylistEntries(playlist: UserPlaylist, onResult: (Result<List<Song>>) -> Unit) {
+        if (playlist.playlistId.startsWith("spotify:")) {
+            val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
+            val accountKey = AppSettings.spotifySpdcToken.value
+                .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+            viewModelScope.launch {
+                val result = runCatching {
+                    val cached = accountKey?.let { SpotifyLibraryCache.getTracks(it, spotifyPlaylistId) }
+                    val tracks = if (
+                        cached != null && accountKey != null &&
+                        SpotifyLibraryCache.areTracksFresh(accountKey, spotifyPlaylistId)
+                    ) {
+                        cached
+                    } else {
+                        SpotifyLibrary.tracks(spotifyPlaylistId).also { fresh ->
+                            if (accountKey != null) {
+                                SpotifyLibraryCache.saveTracks(accountKey, spotifyPlaylistId, fresh)
+                            }
+                        }
+                    }
+                    tracks.map { track ->
+                        accountKey?.let {
+                            SpotifyLibraryCache.getMatchedSong(it, spotifyPlaylistId, track.id)
+                        } ?: null ?: Song(
+                            videoId = SPOTIFY_PENDING_PREFIX + track.id,
+                            title = track.title,
+                            artist = track.artist,
+                            thumbnailUrl = track.imageUrl,
+                            durationText = track.durationMs.takeIf { it > 0 }?.let { ms ->
+                                "%d:%02d".format(ms / 60000, ms / 1000 % 60)
+                            },
+                            albumName = track.album,
+                            spotifyTrackId = track.id,
+                        )
+                    }
+                }
+                onResult(result)
+            }
+            return
+        }
         if (!requireSignIn()) return onResult(Result.failure(IllegalStateException("signed out")))
         viewModelScope.launch {
             onResult(YtMusicRepository.playlistEntries(playlist.browseId))
