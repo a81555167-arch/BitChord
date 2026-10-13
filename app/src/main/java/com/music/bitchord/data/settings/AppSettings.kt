@@ -99,6 +99,14 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
 
+/** Accent family; CLASSIC preserves BitChord's original monochrome appearance. */
+enum class BrandTheme(val label: String) {
+    CLASSIC("Classic"),
+    APPLE_MUSIC("Apple Music"),
+    TIDAL("Tidal"),
+    SPOTIFY("Spotify"),
+}
+
 /**
  * Which of the equaliser's two tabs is driving the sound.
  *
@@ -340,6 +348,7 @@ object AppSettings {
 
     val playbackSpeed = MutableStateFlow(1.0f)
     val themeMode = MutableStateFlow(ThemeMode.DARK)
+    val brandTheme = MutableStateFlow(BrandTheme.CLASSIC)
 
     /** Keep playing similar music once the queue runs out. */
     val autoplay = MutableStateFlow(true)
@@ -816,6 +825,9 @@ object AppSettings {
         themeMode.value = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "DARK")
         }.getOrDefault(ThemeMode.DARK)
+        brandTheme.value = runCatching {
+            BrandTheme.valueOf(prefs.getString(KEY_BRAND_THEME, null) ?: "CLASSIC")
+        }.getOrDefault(BrandTheme.CLASSIC)
         autoplay.value = prefs.getBoolean(KEY_AUTOPLAY, true)
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
@@ -1175,6 +1187,11 @@ object AppSettings {
     fun setThemeMode(value: ThemeMode) {
         themeMode.value = value
         prefs.edit().putString(KEY_THEME, value.name).apply()
+    }
+
+    fun setBrandTheme(value: BrandTheme) {
+        brandTheme.value = value
+        prefs.edit().putString(KEY_BRAND_THEME, value.name).apply()
     }
 
     fun setReduceAnimation(value: Boolean) {
@@ -1943,6 +1960,7 @@ object AppSettings {
     private const val KEY_EQ_BANDS = "equalizer_bands"
     private const val KEY_SPEED = "playback_speed"
     private const val KEY_THEME = "theme_mode"
+    private const val KEY_BRAND_THEME = "brand_theme"
     private const val KEY_AUTOPLAY = "autoplay"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     private const val KEY_REPEAT_MODE = "repeat_mode"
