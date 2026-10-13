@@ -2632,10 +2632,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             // The list only had a thumbnail; the full-size cover replaces it
             // once this page has asked for it.
-            launch {
-                val cover = runCatching { SpotifyLibrary.cover(playlistId) }.getOrNull() ?: return@launch
-                _detailStack.value = _detailStack.value.map {
-                    if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
+            // The library already supplied a thumbnail. Request the larger cover only
+            // when no artwork exists, rather than spending a request on every page open.
+            if (thumbnailUrl.isNullOrBlank()) {
+                launch {
+                    val cover = runCatching { SpotifyLibrary.cover(playlistId) }.getOrNull() ?: return@launch
+                    _detailStack.value = _detailStack.value.map {
+                        if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
+                    }
                 }
             }
 
