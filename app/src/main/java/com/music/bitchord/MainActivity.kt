@@ -2320,7 +2320,9 @@ private fun BitChordApp(
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
-            likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
+            likeStatus = if (song.spotifyTrackId != null) {
+                if (song.spotifyTrackId in spotifyLikedIds) LikeStatus.LIKE else LikeStatus.INDIFFERENT
+            } else likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
             onToggleLike = {
                 song.spotifyTrackId?.let(viewModel::toggleSpotifyLike) ?: viewModel.toggleLike(song.videoId)
             },
