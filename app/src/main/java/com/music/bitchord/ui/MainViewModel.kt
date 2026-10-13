@@ -56,6 +56,7 @@ import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.data.settings.SearchHistory
 import com.music.bitchord.download.Downloads
 import android.util.LruCache
+import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -715,6 +716,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         videoId,
         if (likeStatusOf(videoId) == LikeStatus.LIKE) LikeStatus.INDIFFERENT else LikeStatus.LIKE,
     )
+
+    /** Toggle Spotify's own Liked Songs state for an imported Spotify track. */
+    fun toggleSpotifyLike(trackId: String) {
+        val wasLiked = trackId in _spotifyLikedTrackIds.value
+        viewModelScope.launch {
+            runCatching { SpotifyLibrary.setLiked(trackId, liked = !wasLiked) }
+                .onSuccess {
+                    _spotifyLikedTrackIds.update { current ->
+                        if (wasLiked) current - trackId else current + trackId
+                    }
+                }
+                .onFailure { failure ->
+                    Toast.makeText(
+                        getApplication(),
+                        failure.message ?: "Spotify could not update Liked Songs",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+        }
+    }
 
     /** As [toggleLike], for the thumb-down. */
     fun toggleDislike(videoId: String): LikeStatus? {
@@ -2683,6 +2704,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 freshTracks
             }
 
+            if (playlistId == SpotifyLibrary.LIKED_ID) {
+                _spotifyLikedTrackIds.value = tracks.map { it.id }.toSet()
+            }
             if (tracks.isEmpty()) {
                 setSongs(UiState.Error(text(R.string.spotify_empty_tracks)))
                 return@launch
