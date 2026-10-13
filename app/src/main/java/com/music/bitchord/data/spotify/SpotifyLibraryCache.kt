@@ -168,6 +168,7 @@ object SpotifyLibraryCache {
             .putNullable("albumId", song.albumId)
             .putNullable("albumName", song.albumName)
             .put("isVideo", song.isVideo)
+            .putNullable("spotifyTrackId", song.spotifyTrackId)
         write("match:$accountKey:$playlistId:$spotifyTrackId", value.toString())
     }
 
@@ -185,6 +186,7 @@ object SpotifyLibraryCache {
                 albumId = item.nullableString("albumId"),
                 albumName = item.nullableString("albumName"),
                 isVideo = item.optBoolean("isVideo", false),
+                spotifyTrackId = item.nullableString("spotifyTrackId"),
             )
         }.getOrNull()
     }
