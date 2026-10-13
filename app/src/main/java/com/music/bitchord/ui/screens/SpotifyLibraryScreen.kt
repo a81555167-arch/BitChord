@@ -66,6 +66,9 @@ import com.music.bitchord.data.spotify.SpotifyTrack
 private const val LOGIN_URL =
     "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
 
+private const val LOGIN_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
 private const val LOGIN_LAYOUT_FIX = """
     (function () {
       var id = 'bitchord-login-layout-fix';
@@ -93,7 +96,7 @@ fun SpotifyLibraryScreen(
 ) {
     val cookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     var showLogin by remember { mutableStateOf(false) }
-    var showSpotifyHome by remember(cookie) { mutableStateOf(cookie.isNotBlank()) }
+    var showSpotifyHome by remember(cookie) { mutableStateOf(false) }
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -477,6 +480,7 @@ private fun SpotifyLogin(
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
+                settings.userAgentString = LOGIN_USER_AGENT
                 if (Build.VERSION.SDK_INT >= 33) {
                     settings.isAlgorithmicDarkeningAllowed = false
                 } else if (Build.VERSION.SDK_INT >= 29) {
