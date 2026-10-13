@@ -1664,7 +1664,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // Re-fetch Home when the linked Spotify session changes so its cached/personalized
         // shelves are actually requested immediately after login or disconnect.
         viewModelScope.launch {
-            AppSettings.spotifySpdcToken.drop(1).distinctUntilChanged().collect {
+            AppSettings.spotifySpdcToken.drop(1).collect {
                 loadHome()
             }
         }
