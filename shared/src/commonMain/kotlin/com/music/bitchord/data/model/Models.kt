@@ -335,6 +335,8 @@ data class ShelfItem(
     val thumbnailUrl: String?,
     val videoId: String?,
     val browseId: String?,
+    /** Present for tracks surfaced from Spotify so player actions sync to the right catalogue. */
+    val spotifyTrackId: String? = null,
 )
 
 /** The signed-in Google account, as YouTube Music reports it. */
