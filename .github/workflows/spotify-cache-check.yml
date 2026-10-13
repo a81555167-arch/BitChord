@@ -59,10 +59,10 @@ jobs:
       - name: Assemble production debug APK
         run: ./gradlew :app:assembleProdDebug --stacktrace
 
-      - name: Upload single arm64-v8a APK
+      - name: Upload MyBit arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: BitChord-arm64-v8a-debug
+          name: MyBit-arm64-v8a-debug
           path: app/build/outputs/apk/prod/debug/*arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 7
