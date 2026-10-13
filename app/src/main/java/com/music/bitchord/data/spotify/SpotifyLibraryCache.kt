@@ -111,6 +111,7 @@ object SpotifyLibraryCache {
         accountKey: String,
         playlistId: String,
         tracks: List<SpotifyTrack>,
+        markAsFresh: Boolean = true,
     ) {
         val array = JSONArray()
 
@@ -126,8 +127,15 @@ object SpotifyLibraryCache {
             )
         }
 
-        write("tracks:$accountKey:$playlistId", array.toString())
-        markFresh("tracks:$accountKey:$playlistId")
+        val cacheKey = "tracks:$accountKey:$playlistId"
+        write(cacheKey, array.toString())
+        if (markAsFresh) {
+            markFresh(cacheKey)
+        } else {
+            // A partial page is useful offline, but must never masquerade as a
+            // complete playlist on the next visit.
+            database().delete(TABLE, "$KEY_COLUMN = ?", arrayOf("updated:$cacheKey"))
+        }
     }
 
     fun getTracks(
