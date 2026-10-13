@@ -145,7 +145,9 @@ object SpotifyDiscovery {
                     title = title,
                     subtitle = item.obj("text")?.string("subtitle"),
                     imageUrl = findImageUrl(item.obj("images")),
-                    kind = "category",
+                    kind = if (componentId.contains("categoryCard", ignoreCase = true) ||
+                        uri.startsWith("spotify:genre:") || uri.startsWith("spotify:section:")
+                    ) "category" else "entity",
                 )
             }
             flush()
