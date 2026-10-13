@@ -2702,7 +2702,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 null
                             }
                             val match = cachedMatch ?: matchResult?.getOrNull()?.copy(
-                                thumbnailUrl = matchResult.getOrNull()?.thumbnailUrl ?: track.imageUrl
+                                thumbnailUrl = matchResult.getOrNull()?.thumbnailUrl ?: track.imageUrl,
+                                spotifyTrackId = track.id,
                             ) ?: track.asPendingSong().let {
                                 it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
                             }
@@ -2734,6 +2735,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             "%d:%02d".format(ms / 60000, ms / 1000 % 60)
         },
         albumName = album,
+        spotifyTrackId = id,
     )
 
     fun reloadLocalDetail(browseId: String) {
