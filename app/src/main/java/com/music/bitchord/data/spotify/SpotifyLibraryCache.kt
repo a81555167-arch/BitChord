@@ -16,6 +16,8 @@ object SpotifyLibraryCache {
 
     private const val DATABASE_NAME = "spotify_library_cache.db"
     private const val DATABASE_VERSION = 1
+    private const val PLAYLIST_TTL_MS = 6L * 60 * 60 * 1000
+    private const val TRACK_TTL_MS = 12L * 60 * 60 * 1000
     private const val TABLE = "cache_entries"
     private const val KEY_COLUMN = "cache_key"
     private const val VALUE_COLUMN = "cache_value"
@@ -83,6 +85,7 @@ object SpotifyLibraryCache {
         }
 
         write("playlists:$accountKey", array.toString())
+        markFresh("playlists:$accountKey")
     }
 
     fun getPlaylists(accountKey: String): List<SpotifyPlaylist>? {
@@ -123,6 +126,7 @@ object SpotifyLibraryCache {
         }
 
         write("tracks:$accountKey:$playlistId", array.toString())
+        markFresh("tracks:$accountKey:$playlistId")
     }
 
     fun getTracks(
@@ -146,6 +150,24 @@ object SpotifyLibraryCache {
                 )
             }
         }.getOrNull()
+    }
+
+    /** Avoid re-downloading an unchanged library on every screen visit. */
+    fun arePlaylistsFresh(accountKey: String): Boolean =
+        isFresh("playlists:$accountKey", PLAYLIST_TTL_MS)
+
+    /** Track pages are larger, so keep a longer freshness window. */
+    fun areTracksFresh(accountKey: String, playlistId: String): Boolean =
+        isFresh("tracks:$accountKey:$playlistId", TRACK_TTL_MS)
+
+    private fun markFresh(key: String) {
+        write("updated:$key", System.currentTimeMillis().toString())
+    }
+
+    private fun isFresh(key: String, ttlMs: Long): Boolean {
+        val updatedAt = read("updated:$key")?.toLongOrNull() ?: return false
+        val age = System.currentTimeMillis() - updatedAt
+        return age >= 0L && age < ttlMs
     }
 
     private class CacheDatabase(context: Context) :
