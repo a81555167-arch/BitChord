@@ -1342,11 +1342,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch {
                 runCatching { SpotifyLibrary.renamePlaylist(spotifyPlaylistId, name) }
                     .onSuccess {
-                        _detailStack.value = _detailStack.value.map { page ->
-                            if (page.browseId == "$SPOTIFY_PAGE_PREFIX$spotifyPlaylistId") {
-                                page.copy(title = name)
-                            } else page
-                        }
+                        // Keep the card, picker, and open page in agreement with Spotify.
+                        setPlaylistTitle(playlist, name)
                         val accountKey = AppSettings.spotifySpdcToken.value
                             .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
                         if (accountKey != null) SpotifyLibraryCache.invalidatePlaylists(accountKey)
