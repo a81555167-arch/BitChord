@@ -191,6 +191,13 @@ object SpotifyLibraryCache {
         }.getOrNull()
     }
 
+    /** Drop the account's cached playlist list after a rename or other library edit. */
+    fun invalidatePlaylists(accountKey: String) {
+        val db = database()
+        db.delete(TABLE, "$KEY_COLUMN = ?", arrayOf("playlists:$accountKey"))
+        db.delete(TABLE, "$KEY_COLUMN = ?", arrayOf("updated:playlists:$accountKey"))
+    }
+
     /** Drop a page after a successful edit so the next visit re-syncs with Spotify. */
     fun invalidateTracks(accountKey: String, playlistId: String) {
         val db = database()
