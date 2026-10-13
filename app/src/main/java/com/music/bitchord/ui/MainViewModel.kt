@@ -1926,9 +1926,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val topTracks = if (!forceRefresh && topCache != null && SpotifyLibraryCache.areTracksFresh(accountKey, "home-top")) {
             topCache
         } else {
-            val fetched = runCatching { SpotifyLibrary.topTracks(6) }
-            fetched.getOrNull()?.also { SpotifyLibraryCache.saveTracks(accountKey, "home-top", it) }
-                ?: topCache.orEmpty()
+            val fetched = runCatching { SpotifyLibrary.topTracks(6) }.getOrNull()
+            if (fetched != null) {
+                SpotifyLibraryCache.saveTracks(accountKey, "home-top", fetched)
+                fetched
+            } else {
+                // Cache an unavailable result too, so a missing Web API scope
+                // does not trigger the same failed request on every Home visit.
+                if (topCache == null) SpotifyLibraryCache.saveTracks(accountKey, "home-top", emptyList())
+                topCache.orEmpty()
+            }
         }
 
         val recommendationCache = SpotifyLibraryCache.getTracks(accountKey, "home-recommended")
@@ -1940,10 +1947,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             val fetched = runCatching {
                 SpotifyLibrary.recommendations(topTracks.take(5).map { it.id }, 6)
+            }.getOrNull()
+            if (fetched != null) {
+                SpotifyLibraryCache.saveTracks(accountKey, "home-recommended", fetched)
+                fetched
+            } else {
+                if (recommendationCache == null) {
+                    SpotifyLibraryCache.saveTracks(accountKey, "home-recommended", emptyList())
+                }
+                recommendationCache.orEmpty()
             }
-            fetched.getOrNull()?.also {
-                SpotifyLibraryCache.saveTracks(accountKey, "home-recommended", it)
-            } ?: recommendationCache.orEmpty()
         }
 
         suspend fun resolve(tracks: List<SpotifyTrack>): List<ShelfItem> =
