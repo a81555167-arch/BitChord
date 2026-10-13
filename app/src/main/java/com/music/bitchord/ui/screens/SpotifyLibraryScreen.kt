@@ -96,7 +96,6 @@ fun SpotifyLibraryScreen(
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-val cookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     BackHandler(enabled = showLogin) { showLogin = false }
 val cacheAccountKey = remember(cookie) {
     cookie.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
