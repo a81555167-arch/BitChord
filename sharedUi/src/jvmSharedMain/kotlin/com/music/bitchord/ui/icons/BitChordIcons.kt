@@ -707,6 +707,34 @@ object BitChordIcons {
         }.build()
     }
 
+    /** Outline star for the Spotify add-to-library action. */
+    val Star: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_star",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(12f, 3.25f)
+                lineTo(14.7f, 8.75f)
+                lineTo(20.8f, 9.55f)
+                lineTo(16.4f, 13.8f)
+                lineTo(17.45f, 19.9f)
+                lineTo(12f, 17.0f)
+                lineTo(6.55f, 19.9f)
+                lineTo(7.6f, 13.8f)
+                lineTo(3.2f, 9.55f)
+                lineTo(9.3f, 8.75f)
+                close()
+            }
+        }.build()
+    }
+
     /** List view icon (horizontal rows) for switching layout to list view. */
     val ListView: ImageVector by lazy {
         ImageVector.Builder(
