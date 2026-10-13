@@ -69,10 +69,8 @@ object SpotifyDiscovery {
             .addQueryParameter("extensions", extensions.toString())
             .build()
         val root = requestJson(url.toString(), headers)
-        root.obj("errors")?.let { errors ->
-            if (errors is JsonArray && errors.isNotEmpty()) {
-                error(errors.first().obj("message")?.stringValue() ?: "Spotify Home feed failed")
-            }
+        root["errors"].arrayOrNull()?.firstOrNull()?.objOrNull()?.string("message")?.let { message ->
+            error(message)
         }
         val sections = root.obj("data")?.obj("home")?.obj("sectionContainer")
             ?.obj("sections")?.array("items")
@@ -222,6 +220,10 @@ object SpotifyDiscovery {
         value.startsWith("spotify:image:") -> "https://i.scdn.co/image/${value.substringAfterLast(':')}"
         else -> null
     }
+
+    private fun JsonObject.obj(key: String): JsonObject? = this[key].objOrNull()
+    private fun JsonObject.array(key: String): JsonArray? = this[key].arrayOrNull()
+    private fun JsonObject.string(key: String): String? = this[key].stringValue()
 
     private fun JsonElement?.obj(): JsonObject? = this?.objOrNull()
     private fun JsonElement?.objOrNull(): JsonObject? =
