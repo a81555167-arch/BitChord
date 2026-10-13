@@ -111,11 +111,17 @@ LaunchedEffect(cookie, cacheAccountKey) {
         return@LaunchedEffect
     }
 
-    // Show saved playlists immediately, if available.
-    playlists = SpotifyLibraryCache.getPlaylists(accountKey).orEmpty()
+    // Show saved playlists immediately. A fresh cache is a complete answer:
+    // opening this tab repeatedly should not spend mobile data on the same pages.
+    val cachedPlaylists = SpotifyLibraryCache.getPlaylists(accountKey)
+    playlists = cachedPlaylists.orEmpty()
+    error = null
+    if (cachedPlaylists != null && SpotifyLibraryCache.arePlaylistsFresh(accountKey)) {
+        loading = false
+        return@LaunchedEffect
+    }
 
     loading = true
-    error = null
 
     try {
         // Refresh the cache with the latest Spotify library.
