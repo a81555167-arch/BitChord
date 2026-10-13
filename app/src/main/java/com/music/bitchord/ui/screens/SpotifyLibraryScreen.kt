@@ -330,10 +330,16 @@ private fun SpotifyHomeScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Spacer(Modifier.weight(1f))
+            TextButton(onClick = onOpenLibrary) { Text("Your Library") }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             TextButton(onClick = { feedMode = "home"; exploreUri = null; feedRefresh++ }) { Text("Home feed") }
             TextButton(onClick = { feedMode = "explore"; exploreUri = null; feedRefresh++ }) { Text("Explore") }
-            TextButton(onClick = { feedMode = "web" }) { Text("Web") }
-            TextButton(onClick = onOpenLibrary) { Text("Your Library") }
+            TextButton(onClick = { feedMode = "web" }) { Text("Web player") }
+            if (feedMode != "web") TextButton(onClick = { feedRefresh++ }) { Text("Refresh") }
         }
         if (feedMode == "web") {
         key(rendererGeneration) {
@@ -423,14 +429,16 @@ private fun SpotifyHomeScreen(
                     }
                 }
                 LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                    items(feedSections, key = { it.id }) { section ->
-                        Text(
-                            text = section.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp),
-                        )
-                        items(section.items, key = { it.uri }) { feedItem ->
+                    feedSections.forEach { section ->
+                        item(key = "section:${section.id}") {
+                            Text(
+                                text = section.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp),
+                            )
+                        }
+                        items(section.items, key = { "${section.id}:${it.uri}" }) { feedItem ->
                             val playlistId = feedItem.uri.takeIf { it.startsWith("spotify:playlist:") }
                                 ?.substringAfterLast(':')
                             val canOpenCategory = feedMode == "explore" && feedItem.kind == "category"
