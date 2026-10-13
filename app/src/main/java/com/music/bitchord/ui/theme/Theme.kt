@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.music.bitchord.R
+import com.music.bitchord.data.settings.BrandTheme
 
 // Apple Music's signature red. No longer the primary accent, but kept for the
 // spots (Replay's rank badge) that want that specific red regardless of theme.
@@ -94,10 +95,35 @@ private fun Typography.withFamily(family: FontFamily) = Typography(
 @Composable
 fun BitChordTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    brandTheme: BrandTheme = BrandTheme.CLASSIC,
     content: @Composable () -> Unit,
 ) {
+    val baseColors = if (darkTheme) DarkColors else LightColors
+    val accent = when (brandTheme) {
+        BrandTheme.CLASSIC -> null
+        BrandTheme.APPLE_MUSIC -> Color(0xFFFF2D78)
+        BrandTheme.TIDAL -> Color(0xFF00C2CB)
+        BrandTheme.SPOTIFY -> Color(0xFF1DB954)
+    }
+    val colors = if (accent == null) {
+        baseColors
+    } else {
+        val onAccent = when (brandTheme) {
+            BrandTheme.APPLE_MUSIC -> Color.White
+            BrandTheme.TIDAL, BrandTheme.SPOTIFY -> Color.Black
+            BrandTheme.CLASSIC -> baseColors.onPrimary
+        }
+        baseColors.copy(
+            primary = accent,
+            onPrimary = onAccent,
+            secondary = accent,
+            onSecondary = onAccent,
+            tertiary = accent,
+            onTertiary = onAccent,
+        )
+    }
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = colors,
         typography = BitChordTypography,
         content = content,
     )
