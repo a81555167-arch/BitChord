@@ -3049,8 +3049,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // A fresh page avoids both the Spotify download and pagination requests.
                 cachedTracksResult
             } else {
+                var partialTracks: List<SpotifyTrack> = cachedTracks
                 val freshResult = runCatching {
                     SpotifyLibrary.tracks(playlistId) { soFar ->
+                        partialTracks = soFar
                         // Keep each completed Spotify page on disk while importing.
                         // If the connection drops mid-playlist, the partial library
                         // remains usable offline but is not marked as complete.
@@ -3066,11 +3068,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 val freshTracks = freshResult.getOrElse { failure ->
-                    if (cachedTracks.isNotEmpty()) {
-                        cachedTracks
-                    } else {
-                        setSongs(UiState.Error(failure.message ?: text(R.string.failed)))
-                        return@launch
+                    when {
+                        cachedTracks.isNotEmpty() -> cachedTracks
+                        partialTracks.isNotEmpty() -> partialTracks
+                        else -> {
+                            setSongs(UiState.Error(failure.message ?: text(R.string.failed)))
+                            return@launch
+                        }
                     }
                 }
                 if (freshResult.isSuccess && accountKey != null) {
