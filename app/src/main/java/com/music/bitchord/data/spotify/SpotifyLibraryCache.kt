@@ -17,8 +17,8 @@ object SpotifyLibraryCache {
 
     private const val DATABASE_NAME = "spotify_library_cache.db"
     private const val DATABASE_VERSION = 1
-    private const val PLAYLIST_TTL_MS = 24L * 60 * 60 * 1000
-    private const val TRACK_TTL_MS = 24L * 60 * 60 * 1000
+    private const val PLAYLIST_TTL_MS = 7L * 24 * 60 * 60 * 1000
+    private const val TRACK_TTL_MS = 7L * 24 * 60 * 60 * 1000
     // Back off failed Home API calls without pretending an error is a valid empty feed.
     private const val FEED_FAILURE_TTL_MS = 15L * 60 * 1000
     private const val TABLE = "cache_entries"
