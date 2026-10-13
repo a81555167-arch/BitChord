@@ -29,8 +29,8 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Install Android platform
-        run: sdkmanager "platforms;android-37"
+      - name: Install Android 17 preview platform
+        run: sdkmanager --channel=3 "platforms;android-37"
 
       - name: Create local properties
         run: |
