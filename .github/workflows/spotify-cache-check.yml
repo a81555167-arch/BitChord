@@ -10,12 +10,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: spotify-cache-branch-build
+  group: spotify-cache-branch-build-final
   cancel-in-progress: true
 
 jobs:
   android-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
