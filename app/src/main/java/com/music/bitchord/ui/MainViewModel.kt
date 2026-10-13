@@ -1164,7 +1164,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch {
                 runCatching {
                     if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
-                        SpotifyLibrary.setLiked(spotifyTrackId, liked = false)
+                        SpotifyLibrary.setLikedTrack(spotifyTrackId, title = song.title, artist = song.artist, liked = false)
                     } else {
                         SpotifyLibrary.removeTrackFromPlaylist(spotifyPlaylistId, spotifyTrackId)
                     }
