@@ -1301,9 +1301,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * showing the old name.
      */
     fun renamePlaylist(playlist: UserPlaylist, title: String) {
-        if (!requireSignIn()) return
         val name = title.trim()
         if (name.isBlank() || name == playlist.title) return
+        if (playlist.playlistId.startsWith("spotify:")) {
+            val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
+            viewModelScope.launch {
+                runCatching { SpotifyLibrary.renamePlaylist(spotifyPlaylistId, name) }
+                    .onSuccess {
+                        _detailStack.value = _detailStack.value.map { page ->
+                            if (page.browseId == "$SPOTIFY_PAGE_PREFIX$spotifyPlaylistId") {
+                                page.copy(title = name)
+                            } else page
+                        }
+                        val accountKey = AppSettings.spotifySpdcToken.value
+                            .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                        if (accountKey != null) SpotifyLibraryCache.invalidatePlaylists(accountKey)
+                    }
+                    .onFailure { failure ->
+                        Toast.makeText(
+                            getApplication(),
+                            failure.message ?: "Spotify could not rename this playlist",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+            }
+            return
+        }
+        if (!requireSignIn()) return
         viewModelScope.launch {
             YtMusicRepository.renamePlaylist(playlist.playlistId, name).fold(
                 onSuccess = {
