@@ -11,6 +11,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.RenderProcessGoneDetail
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.core.net.toUri
@@ -43,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -329,6 +331,8 @@ private fun SpotifyLogin(
     modifier: Modifier = Modifier,
 ) {
     var sent by remember { mutableStateOf(false) }
+    var loginGeneration by remember { mutableIntStateOf(0) }
+    key(loginGeneration) {
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
@@ -359,6 +363,17 @@ private fun SpotifyLogin(
                         request: WebResourceRequest,
                     ): Boolean = !isLoginHost(request.url)
 
+                    override fun onRenderProcessGone(
+                        view: WebView,
+                        detail: RenderProcessGoneDetail,
+                    ): Boolean {
+                        // A dead Chromium renderer must not take BitChord down with it.
+                        // Recreate the login WebView on the next Compose frame.
+                        sent = false
+                        loginGeneration += 1
+                        return true
+                    }
+
                     override fun onPageFinished(view: WebView, url: String?) {
                         if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
                         if (sent || url?.startsWith("https://open.spotify.com") != true) return
@@ -378,6 +393,7 @@ private fun SpotifyLogin(
         },
         onRelease = { it.destroy() },
     )
+    }
 }
 private fun spotifyCacheAccountKey(cookie: String): String =
     MessageDigest.getInstance("SHA-256")
