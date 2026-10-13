@@ -1114,6 +1114,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * row out from under the reader rather than waiting for a re-fetch.
      */
     fun removeFromPlaylist(browseId: String, song: Song) {
+        if (browseId.startsWith(SPOTIFY_PAGE_PREFIX)) {
+            val spotifyPlaylistId = browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
+            val spotifyTrackId = song.spotifyTrackId ?: return
+            viewModelScope.launch {
+                runCatching {
+                    if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                        SpotifyLibrary.setLiked(spotifyTrackId, liked = false)
+                    } else {
+                        SpotifyLibrary.removeTrackFromPlaylist(spotifyPlaylistId, spotifyTrackId)
+                    }
+                }.onSuccess {
+                    if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                        _spotifyLikedTrackIds.update { it - spotifyTrackId }
+                    }
+                    _detailStack.value = _detailStack.value.map { page ->
+                        val songs = (page.songs as? UiState.Success<List<Song>>)?.data
+                        if (page.browseId != browseId || songs == null) page
+                        else page.copy(songs = UiState.Success(songs.filterNot { it.spotifyTrackId == spotifyTrackId }))
+                    }
+                    val accountKey = AppSettings.spotifySpdcToken.value
+                        .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                    if (accountKey != null) {
+                        SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
+                    }
+                }.onFailure { failure ->
+                    Toast.makeText(
+                        getApplication(),
+                        failure.message ?: "Spotify could not remove this track",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+            return
+        }
         val setVideoId = song.setVideoId ?: return
         if (!requireSignIn()) return
         val playlistId = browseId.removePrefix("VL")
