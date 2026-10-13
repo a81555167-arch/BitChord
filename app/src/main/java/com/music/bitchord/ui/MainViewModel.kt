@@ -721,7 +721,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     /** Toggle Spotify's own Liked Songs state for an imported Spotify track. */
-    fun toggleSpotifyLike(trackId: String) {
+    fun toggleSpotifyLike(trackId: String, song: Song) {
         val wasLiked = trackId in _spotifyLikedTrackIds.value
         viewModelScope.launch {
             runCatching { SpotifyLibrary.setLiked(trackId, liked = !wasLiked) }
@@ -731,8 +731,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     val accountKey = AppSettings.spotifySpdcToken.value
                         .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
-                    if (accountKey != null) {
-                        SpotifyLibraryCache.invalidateTracks(accountKey, SpotifyLibrary.LIKED_ID)
+                    val cachedLiked = accountKey?.let {
+                        SpotifyLibraryCache.getTracks(it, SpotifyLibrary.LIKED_ID)
+                    }
+                    if (accountKey != null && cachedLiked != null) {
+                        val withoutTrack = cachedLiked.filterNot { it.id == trackId }
+                        val updated = if (wasLiked) {
+                            withoutTrack
+                        } else {
+                            listOf(
+                                SpotifyTrack(
+                                    id = trackId,
+                                    title = song.title,
+                                    artist = song.artist,
+                                    album = song.albumName,
+                                    durationMs = 0,
+                                    imageUrl = song.thumbnailUrl,
+                                ),
+                            ) + withoutTrack
+                        }
+                        SpotifyLibraryCache.saveTracks(accountKey, SpotifyLibrary.LIKED_ID, updated)
                     }
                 }
                 .onFailure { failure ->
