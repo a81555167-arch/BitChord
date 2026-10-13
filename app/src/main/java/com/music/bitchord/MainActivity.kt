@@ -4580,7 +4580,7 @@ private fun BitChordApp(
             val ownedPlaylists by viewModel.playlistOwned.collectAsStateWithLifecycle()
             val playlist = if (target.browseId?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
                 val spotifyId = target.browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
-                spotifyPlaylists.firstOrNull { it.id == spotifyId }?.let { spotify ->
+                spotifyPlaylists.firstOrNull { it.id == spotifyId && it.id != SpotifyLibrary.LIKED_ID }?.let { spotify ->
                     UserPlaylist(
                         playlistId = "spotify:${spotify.id}",
                         title = spotify.name,
