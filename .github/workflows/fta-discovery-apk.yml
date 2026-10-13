@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: fta-discovery-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-discovery-apk:
     runs-on: ubuntu-latest
