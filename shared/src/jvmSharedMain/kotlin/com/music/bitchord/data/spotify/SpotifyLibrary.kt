@@ -228,6 +228,7 @@ object SpotifyLibrary {
                 )
             }
         }
+        trackId
     }
 
     suspend fun addTrackToPlaylist(
@@ -258,6 +259,7 @@ object SpotifyLibrary {
                 )
             }
         }
+        trackId
     }
 
     /** Rename a Spotify playlist when the connected session permits playlist edits. */
