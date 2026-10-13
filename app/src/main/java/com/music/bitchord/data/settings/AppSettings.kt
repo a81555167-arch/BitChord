@@ -162,10 +162,10 @@ object AppSettings {
     private lateinit var authStore: AuthStore
 
     /**
-     * Quality ceilings, one per kind of connection — the point of the split is
-     * that Wi-Fi can stay on Lossless while mobile data is capped. Both
-     * default to Lossless; the mobile plan is the user's to budget, not ours
-     * to assume.
+     * Quality ceilings, one per kind of connection. Wi-Fi defaults to Lossless;
+     * cellular defaults to Medium to keep ordinary listening from consuming
+     * hundreds of megabytes per hour. The listener can raise the mobile ceiling
+     * explicitly in Settings when data usage is not a concern.
      */
     val audioQualityWifi = MutableStateFlow(AudioQuality.LOSSLESS)
     val audioQualityCellular = MutableStateFlow(AudioQuality.MEDIUM)
