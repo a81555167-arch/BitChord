@@ -964,14 +964,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * bar both, which read [DetailPage.title].
      */
     private fun setPlaylistTitle(playlist: UserPlaylist, title: String) {
+        val pageBrowseId = if (playlist.playlistId.startsWith("spotify:")) {
+            SPOTIFY_PAGE_PREFIX + playlist.playlistId.removePrefix("spotify:")
+        } else {
+            playlist.browseId
+        }
         _playlists.value = _playlists.value.map {
             if (it.playlistId == playlist.playlistId) it.copy(title = title) else it
         }
         editPlaylistShelf { items ->
-            items.map { if (it.browseId == playlist.browseId) it.copy(title = title) else it }
+            items.map { if (it.browseId == pageBrowseId) it.copy(title = title) else it }
         }
         _detailStack.value = _detailStack.value.map {
-            if (it.browseId == playlist.browseId) it.copy(title = title) else it
+            if (it.browseId == pageBrowseId) it.copy(title = title) else it
         }
     }
 
