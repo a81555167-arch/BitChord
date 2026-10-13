@@ -11,10 +11,10 @@
 
 <br/>
 
-[![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/Fta?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/Fta/releases)
-[![License](https://img.shields.io/github/license/kushagrasinghx/Fta?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/Fta/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/kushagrasinghx/Fta/total?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/Fta/releases)
-[![Listening now](https://api.fta.kushagrasingh.in/api/stats/live/badge.svg)](https://api.fta.kushagrasingh.in/api/stats/live)
+[![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
+[![License](https://img.shields.io/github/license/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/kushagrasinghx/BitChord/total?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
+[![Listening now](https://api.bitchord.kushagrasingh.in/api/stats/live/badge.svg)](https://api.bitchord.kushagrasingh.in/api/stats/live)
 
 <br/>
 
@@ -89,10 +89,10 @@
 
 <h1><a id="download"></a>Download</h1>
 
-<a href="https://github.com/kushagrasinghx/Fta/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
-<a href="https://github.com/kushagrasinghx/Fta/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="55"/></a>
+<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
+<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="55"/></a>
 
-Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/Fta/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
+Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/BitChord/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
 
 For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
 
@@ -110,8 +110,8 @@ We welcome contributions to Fta! Please review our [Contributing Guide](CONTRIBU
 
 ### Thanks to all contributors ❤
 
-<a href="https://github.com/kushagrasinghx/Fta/graphs/contributors">
-  <img src="https://raw.githubusercontent.com/kushagrasinghx/Fta/contributors/contributors.svg" />
+<a href="https://github.com/kushagrasinghx/BitChord/graphs/contributors">
+  <img src="https://raw.githubusercontent.com/kushagrasinghx/BitChord/contributors/contributors.svg" />
 </a>
 
 </div>
