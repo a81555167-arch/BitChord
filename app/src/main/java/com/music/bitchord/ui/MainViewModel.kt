@@ -1393,11 +1393,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ) {
                         cached
                     } else {
-                        SpotifyLibrary.tracks(spotifyPlaylistId).also { fresh ->
-                            if (accountKey != null) {
-                                SpotifyLibraryCache.saveTracks(accountKey, spotifyPlaylistId, fresh)
+                        // Reordering needs the actual rows, but an offline refresh
+                        // must not erase a previously imported local snapshot.
+                        runCatching { SpotifyLibrary.tracks(spotifyPlaylistId) }
+                            .onSuccess { fresh ->
+                                if (accountKey != null) {
+                                    SpotifyLibraryCache.saveTracks(accountKey, spotifyPlaylistId, fresh)
+                                }
                             }
-                        }
+                            .getOrElse { failure -> cached ?: throw failure }
                     }
                     if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
                         _spotifyLikedTrackIds.value = tracks.mapTo(mutableSetOf()) { it.id }
