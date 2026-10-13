@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 import com.music.bitchord.data.spotify.SpotifyLibraryCache
+import com.music.bitchord.data.spotify.SpotifyDiscovery
+import com.music.bitchord.data.spotify.SpotifyFeedSection
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import android.annotation.SuppressLint
@@ -180,6 +182,7 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter, showSpotifyHome) {
             modifier = modifier,
             contentPadding = contentPadding,
             onOpenLibrary = { showSpotifyHome = false },
+            onOpenPlaylist = onOpenPlaylist,
         )
         return
     }
@@ -273,11 +276,37 @@ private fun SpotifyHomeScreen(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
     onOpenLibrary: () -> Unit,
+    onOpenPlaylist: (SpotifyPlaylist) -> Unit,
 ) {
     var rendererGeneration by remember { mutableIntStateOf(0) }
     var homeWebView by remember { mutableStateOf<WebView?>(null) }
-    BackHandler(enabled = homeWebView?.canGoBack() == true) {
+    var feedMode by remember(sessionCookie) { mutableStateOf("web") }
+    var feedSections by remember { mutableStateOf<List<SpotifyFeedSection>>(emptyList()) }
+    var feedLoading by remember { mutableStateOf(false) }
+    var feedError by remember { mutableStateOf<String?>(null) }
+    var exploreUri by remember(sessionCookie) { mutableStateOf<String?>(null) }
+    var feedRefresh by remember { mutableIntStateOf(0) }
+    BackHandler(enabled = homeWebView?.canGoBack() == true && feedMode == "web") {
         homeWebView?.goBack()
+    }
+
+    LaunchedEffect(sessionCookie, feedMode, exploreUri, feedRefresh) {
+        if (feedMode == "web") return@LaunchedEffect
+        feedLoading = true
+        feedError = null
+        try {
+            feedSections = if (feedMode == "home") {
+                SpotifyDiscovery.home()
+            } else {
+                SpotifyDiscovery.explore(sectionUri = exploreUri)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            feedError = e.message ?: "Could not load Spotify discovery feed"
+        } finally {
+            feedLoading = false
+        }
     }
     Column(modifier.fillMaxSize().padding(contentPadding)) {
         Row(
@@ -292,13 +321,21 @@ private fun SpotifyHomeScreen(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = "Spotify Home",
+                text = when (feedMode) {
+                    "home" -> "Spotify Home"
+                    "explore" -> "Spotify Explore"
+                    else -> "Spotify Web"
+                },
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Spacer(Modifier.weight(1f))
+            TextButton(onClick = { feedMode = "home"; exploreUri = null; feedRefresh++ }) { Text("Home feed") }
+            TextButton(onClick = { feedMode = "explore"; exploreUri = null; feedRefresh++ }) { Text("Explore") }
+            TextButton(onClick = { feedMode = "web" }) { Text("Web") }
             TextButton(onClick = onOpenLibrary) { Text("Your Library") }
         }
+        if (feedMode == "web") {
         key(rendererGeneration) {
             AndroidView(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -363,6 +400,64 @@ private fun SpotifyHomeScreen(
                 },
             )
         }
+        } else {
+            Column(Modifier.fillMaxWidth().weight(1f)) {
+                if (feedMode == "explore" && exploreUri != null) {
+                    TextButton(onClick = { exploreUri = null; feedRefresh++ }) {
+                        Text("Back to Explore")
+                    }
+                }
+                if (feedLoading) {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                feedError?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+                    TextButton(onClick = { feedRefresh++ }) {
+                        Text("Retry")
+                    }
+                }
+                LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                    items(feedSections, key = { it.id }) { section ->
+                        Text(
+                            text = section.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp),
+                        )
+                        items(section.items, key = { it.uri }) { feedItem ->
+                            val playlistId = feedItem.uri.takeIf { it.startsWith("spotify:playlist:") }
+                                ?.substringAfterLast(':')
+                            val canOpenCategory = feedMode == "explore" && feedItem.kind == "category"
+                            LibraryRow(
+                                title = feedItem.title,
+                                subtitle = feedItem.subtitle.orEmpty(),
+                                imageUrl = feedItem.imageUrl,
+                                enabled = playlistId != null || canOpenCategory,
+                                onClick = {
+                                    when {
+                                        canOpenCategory -> { exploreUri = feedItem.uri; feedRefresh++ }
+                                        playlistId != null -> onOpenPlaylist(
+                                            SpotifyPlaylist(
+                                                id = playlistId,
+                                                name = feedItem.title,
+                                                owner = feedItem.subtitle,
+                                                imageUrl = feedItem.imageUrl,
+                                            )
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -371,12 +466,13 @@ private fun LibraryRow(
     title: String,
     subtitle: String,
     imageUrl: String?,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
