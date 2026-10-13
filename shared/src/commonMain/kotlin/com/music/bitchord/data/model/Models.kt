@@ -104,6 +104,8 @@ data class Song(
      * the track played as a 128kbps MP3.
      */
     val sourceQuality: String? = null,
+    /** Spotify catalogue id, retained when a Spotify row is matched to a playable BitChord track. */
+    val spotifyTrackId: String? = null,
     /** Explicit-content state from the catalogue; null when that source does not say. */
     val isExplicit: Boolean? = null,
     /**
