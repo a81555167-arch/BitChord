@@ -276,7 +276,7 @@ private fun SpotifyHomeScreen(
 ) {
     var rendererGeneration by remember { mutableIntStateOf(0) }
     var homeWebView by remember { mutableStateOf<WebView?>(null) }
-    BackHandler(enabled = homeWebView?.canGoBack == true) {
+    BackHandler(enabled = homeWebView?.canGoBack() == true) {
         homeWebView?.goBack()
     }
     Column(modifier.fillMaxSize().padding(contentPadding)) {
