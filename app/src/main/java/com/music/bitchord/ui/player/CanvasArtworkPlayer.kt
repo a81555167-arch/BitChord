@@ -51,6 +51,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.music.bitchord.ui.rememberIsForeground
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.music.bitchord.data.Http
+import com.music.bitchord.data.settings.AppSettings
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.canvas.CanvasCache
 import kotlinx.coroutines.delay
@@ -163,6 +165,9 @@ internal fun AndroidCanvasArtworkPlayer(
     pausedForTransition: Boolean = false,
 ) {
     val context = LocalContext.current
+    // Moving artwork is optional network traffic. Do not fetch video clips on a metered
+    // connection; the still cover remains visible and audio playback is unaffected.
+    val meteredConnection by AppSettings.meteredConnection.collectAsStateWithLifecycle()
 
     var url by remember(canvas) { mutableStateOf(canvas.url) }
     var rendered by remember(canvas) { mutableStateOf(false) }
@@ -238,10 +243,16 @@ internal fun AndroidCanvasArtworkPlayer(
         }
     }
 
-    LaunchedEffect(url) {
+    LaunchedEffect(url, meteredConnection) {
         rendered = false
         clipAspect = 0f
         reportAspect(0f)
+        // Unknown connectivity is treated conservatively until Android reports the
+        // active network. Wi-Fi and other unmetered connections retain the full canvas.
+        if (meteredConnection != false) {
+            player.stop()
+            return@LaunchedEffect
+        }
         val item = MediaItem.Builder().setUri(url)
         mimeTypeOf(url)?.let { item.setMimeType(it) }
         player.setMediaItem(item.build())
