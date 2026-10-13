@@ -1727,7 +1727,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // The core feed plus one browse per supplement. Recently played is left
         // out: it has its own skeleton at the head of the page rather than the
         // one at the tail.
-        _homePendingShelves.value = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size
+        val spotifyAccountKey = AppSettings.spotifySpdcToken.value
+            .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+        _homePendingShelves.value = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size +
+            if (spotifyAccountKey != null) 1 else 0
         viewModelScope.launch {
             launch {
                 try {
@@ -1758,6 +1761,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         .onFailure {
                             if (isCurrentHomeLoad(identity, generation)) _homeRecentlyPlayedLoading.value = false
                         }
+                }
+            }
+            if (spotifyAccountKey != null) {
+                launch {
+                    try {
+                        val shelves = spotifyHomeShelves(spotifyAccountKey)
+                        if (isCurrentHomeLoad(identity, generation) && shelves.isNotEmpty()) {
+                            publishHomeShelves(shelves)
+                        }
+                    } finally {
+                        homeShelfRequestSettled(identity, generation)
+                    }
                 }
             }
             YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.forEach { browseId ->
@@ -1801,6 +1816,96 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val added = shelves.withoutRepeatsOf(existing)
             .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
         if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+    }
+
+    /**
+     * A small, cached Spotify Home supplement. It uses the connected account's
+     * top tracks and recommendations, then resolves them to playable BitChord
+     * tracks once and caches those matches. If Spotify doesn't grant the
+     * required Web API scopes, the ordinary BitChord Home remains unaffected.
+     */
+    private suspend fun spotifyHomeShelves(accountKey: String): List<HomeShelf> {
+        val topCache = SpotifyLibraryCache.getTracks(accountKey, "home-top")
+        val topTracks = if (topCache != null && SpotifyLibraryCache.areTracksFresh(accountKey, "home-top")) {
+            topCache
+        } else {
+            val fetched = runCatching { SpotifyLibrary.topTracks(6) }
+            fetched.getOrNull()?.also { SpotifyLibraryCache.saveTracks(accountKey, "home-top", it) }
+                ?: topCache.orEmpty()
+        }
+
+        val recommendationCache = SpotifyLibraryCache.getTracks(accountKey, "home-recommended")
+        val recommended = if (
+            recommendationCache != null &&
+            SpotifyLibraryCache.areTracksFresh(accountKey, "home-recommended")
+        ) {
+            recommendationCache
+        } else {
+            val fetched = runCatching {
+                SpotifyLibrary.recommendations(topTracks.take(5).map { it.id }, 6)
+            }
+            fetched.getOrNull()?.also {
+                SpotifyLibraryCache.saveTracks(accountKey, "home-recommended", it)
+            } ?: recommendationCache.orEmpty()
+        }
+
+        suspend fun resolve(tracks: List<SpotifyTrack>): List<ShelfItem> =
+            tracks.mapNotNull { track ->
+                val cachedMatch = SpotifyLibraryCache.getMatchedSong(accountKey, "home", track.id)
+                val song = if (cachedMatch != null) {
+                    cachedMatch
+                } else {
+                    val result = runCatching { SpotifyImporter.matchTrack(track) }
+                    val matched = result.getOrNull()?.copy(
+                        thumbnailUrl = result.getOrNull()?.thumbnailUrl ?: track.imageUrl,
+                        spotifyTrackId = track.id,
+                    )
+                    if (result.isSuccess) {
+                        val toCache = matched ?: Song(
+                            videoId = SPOTIFY_MISSING_PREFIX + track.id,
+                            title = track.title,
+                            artist = track.artist,
+                            thumbnailUrl = track.imageUrl,
+                            spotifyTrackId = track.id,
+                        )
+                        SpotifyLibraryCache.saveMatchedSong(accountKey, "home", track.id, toCache)
+                    }
+                    matched
+                }
+                if (song == null || song.videoId.startsWith(SPOTIFY_MISSING_PREFIX) ||
+                    song.videoId.startsWith(SPOTIFY_PENDING_PREFIX)
+                ) {
+                    null
+                } else {
+                    ShelfItem(
+                        title = track.title,
+                        subtitle = "Song • " + track.artist,
+                        thumbnailUrl = song.thumbnailUrl ?: track.imageUrl,
+                        videoId = song.videoId,
+                        browseId = null,
+                        spotifyTrackId = track.id,
+                    )
+                }
+            }
+
+        val shelves = mutableListOf<HomeShelf>()
+        val topItems = resolve(topTracks)
+        if (topItems.isNotEmpty()) {
+            shelves += HomeShelf(
+                title = "Your Spotify top tracks",
+                subtitle = "From your connected Spotify account",
+                items = topItems,
+            )
+        }
+        val recommendationItems = resolve(recommended)
+        if (recommendationItems.isNotEmpty()) {
+            shelves += HomeShelf(
+                title = "Recommended by Spotify",
+                subtitle = "Personalized for your listening",
+                items = recommendationItems,
+            )
+        }
+        return shelves
     }
 
     /** Refreshes the core feed without blanking the current Play page first. */
