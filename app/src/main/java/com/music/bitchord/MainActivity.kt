@@ -2679,7 +2679,7 @@ private fun BitChordApp(
                             // through the window background.
                             EnterTransition.None togetherWith ExitTransition.None
                         } else {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                            fadeIn(tween(140)) togetherWith fadeOut(tween(140))
                         }
                     },
                     modifier = Modifier
