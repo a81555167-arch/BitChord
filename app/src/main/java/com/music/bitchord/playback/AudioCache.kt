@@ -1,6 +1,7 @@
 package com.music.bitchord.playback
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.media.MediaDataSource
 import android.net.Uri
 import android.os.SystemClock
@@ -192,6 +193,11 @@ object AudioCache {
     const val QUEUE_DEPTH = QUEUE_LOOKAHEAD + 1
 
     private lateinit var cache: SimpleCache
+    private var connectivityManager: ConnectivityManager? = null
+
+    /** Fail closed: when network metering cannot be determined, skip speculative audio downloads. */
+    private fun isMeteredConnection(): Boolean =
+        runCatching { connectivityManager?.isActiveNetworkMetered ?: true }.getOrDefault(true)
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -202,6 +208,8 @@ object AudioCache {
      * dropping the spans that named them.
      */
     fun init(context: Context) {
+        connectivityManager = context.applicationContext
+            .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         evictor.maxBytes = AppSettings.audioCacheLimitBytes.value
         cache = SimpleCache(
             File(context.cacheDir, "audio"),
@@ -962,7 +970,10 @@ object AudioCache {
                 // outranks YouTube and read-ahead is the only writer, or a
                 // source has been pinned and every writer now resolves to it.
                 val cacheBytes = (!substitutable || warmed != null) && !pinnedToYouTube
-                if (cacheBytes) {
+                // Never download speculative audio on a metered connection.
+                // Playback still caches the bytes the listener actually hears;
+                // the full-track prefetch waits for unmetered Wi-Fi.
+                if (cacheBytes && !isMeteredConnection()) {
                     launch(TrackLog.about(next)) {
                         delay(PREFETCH_DELAY_MS)
                         fetch(next, 0, PRELOAD_BYTES)
