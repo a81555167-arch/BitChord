@@ -736,6 +736,8 @@ fun NowPlayingScreen(
      */
     windowHeight: Dp,
     modifier: Modifier = Modifier,
+    /** Add the current track to Spotify Liked Songs, then open its playlist picker on the next tap. */
+    onAddToSpotify: (() -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -3258,6 +3260,14 @@ fun NowPlayingScreen(
                             onClick = onToggleLike,
                             active = liked,
                             haptic = if (liked) Haptic.ToggleOff else Haptic.ToggleOn,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    if (onAddToSpotify != null && song.localUri == null) {
+                        CircleGlyph(
+                            icon = Icons.Rounded.Star,
+                            contentDescription = "Add to Spotify Liked Songs or choose a playlist",
+                            onClick = onAddToSpotify,
                         )
                         Spacer(Modifier.width(8.dp))
                     }
