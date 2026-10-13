@@ -4550,8 +4550,27 @@ private fun BitChordApp(
             // Rename and Delete are absent until the answer says they apply, so
             // the sheet's worst moment is a beat without them on the user's own
             // playlist, rather than offering to delete a stranger's.
-            LaunchedEffect(target.browseId) {
-                viewModel.resolvePlaylistOwnership(target.browseId)
+            LaunchedEffect(target.browseId, spotifyCookie) {
+                if (target.browseId?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
+                    if (spotifyCookie.isBlank()) return@LaunchedEffect
+                    val accountKey = spotifyPickerCacheAccountKey(spotifyCookie)
+                    val cached = SpotifyLibraryCache.getPlaylists(accountKey)
+                    spotifyPlaylists = cached.orEmpty()
+                    if (cached != null && SpotifyLibraryCache.arePlaylistsFresh(accountKey)) {
+                        return@LaunchedEffect
+                    }
+                    try {
+                        val fresh = SpotifyLibrary.playlists()
+                        SpotifyLibraryCache.savePlaylists(accountKey, fresh)
+                        spotifyPlaylists = fresh
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // Keep the cached playlist details if the session can't refresh.
+                    }
+                } else {
+                    viewModel.resolvePlaylistOwnership(target.browseId)
+                }
             }
             // Spelt out here rather than left to MainViewModel.editablePlaylist,
             // which is the same rule over the same two lists: that reads them as
@@ -4559,9 +4578,21 @@ private fun BitChordApp(
             // Compose. Both are read from collected state so this sheet actually
             // recomposes when the answer arrives.
             val ownedPlaylists by viewModel.playlistOwned.collectAsStateWithLifecycle()
-            val playlist = target.browseId
-                ?.takeIf { signedIn && ownedPlaylists[it] == true }
-                ?.let { id -> playlists.firstOrNull { it.browseId == id } }
+            val playlist = if (target.browseId?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
+                val spotifyId = target.browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
+                spotifyPlaylists.firstOrNull { it.id == spotifyId }?.let { spotify ->
+                    UserPlaylist(
+                        playlistId = "spotify:${spotify.id}",
+                        title = spotify.name,
+                        subtitle = spotify.owner.orEmpty(),
+                        thumbnailUrl = spotify.imageUrl,
+                    )
+                }
+            } else {
+                target.browseId
+                    ?.takeIf { signedIn && ownedPlaylists[it] == true }
+                    ?.let { id -> playlists.firstOrNull { it.browseId == id } }
+            }
             val remote = target.browseId?.startsWith("local:") == false
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
@@ -4628,7 +4659,7 @@ private fun BitChordApp(
                 // channel link, not a release, and nobody asked for it)
                 // and off anything with no real browse id behind it.
                 onShare = target.browseId
-                    ?.takeIf { remote && (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST) }
+                    ?.takeIf { remote && !it.startsWith(SPOTIFY_PAGE_PREFIX) && (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST) }
                     ?.let { id ->
                         {
                             val url = if (target.type == BrowseType.PLAYLIST) {
@@ -4667,7 +4698,7 @@ private fun BitChordApp(
                         viewModel.renamePlaylist(p, name)
                     }
                 },
-                onReorder = playlist?.let { p ->
+                onReorder = playlist?.takeIf { !it.playlistId.startsWith("spotify:") }?.let { p ->
                     {
                         browseActions = null
                         reorderTarget = p
@@ -4682,7 +4713,7 @@ private fun BitChordApp(
                         }
                     }
                 },
-                onDelete = playlist?.let { p ->
+                onDelete = playlist?.takeIf { !it.playlistId.startsWith("spotify:") }?.let { p ->
                     {
                         browseActions = null
                         viewModel.deletePlaylist(p)
