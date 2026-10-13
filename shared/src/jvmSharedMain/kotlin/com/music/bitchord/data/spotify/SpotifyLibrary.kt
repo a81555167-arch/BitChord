@@ -71,6 +71,67 @@ object SpotifyLibrary {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
+    /** User-specific listening taste from Spotify's Web API; callers cache this for hours. */
+    suspend fun topTracks(limit: Int = 6): List<SpotifyTrack> = withContext(Dispatchers.IO) {
+        val headers = authHeaders()
+        webApiTracks(
+            "https://api.spotify.com/v1/me/top/tracks?limit=${limit.coerceIn(1, 10)}&time_range=medium_term",
+            headers,
+            "items",
+        )
+    }
+
+    /** Spotify's personalized recommendations, seeded from the listener's own top tracks. */
+    suspend fun recommendations(seedTrackIds: List<String>, limit: Int = 6): List<SpotifyTrack> =
+        withContext(Dispatchers.IO) {
+            val seeds = seedTrackIds.filter { it.matches(Regex("[A-Za-z0-9]{22}")) }.distinct().take(5)
+            if (seeds.isEmpty()) return@withContext emptyList()
+            val headers = authHeaders()
+            val encodedSeeds = java.net.URLEncoder.encode(seeds.joinToString(","), Charsets.UTF_8.name())
+            webApiTracks(
+                "https://api.spotify.com/v1/recommendations?limit=${limit.coerceIn(1, 10)}&seed_tracks=$encodedSeeds",
+                headers,
+                "tracks",
+            )
+        }
+
+    private fun webApiTracks(
+        url: String,
+        headers: Map<String, String>,
+        itemsKey: String,
+    ): List<SpotifyTrack> {
+        val request = Request.Builder()
+            .url(url)
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
+            .get()
+            .build()
+        val payload = Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("Spotify personalized feed unavailable (" + response.code + ")")
+            }
+            response.body?.string().orEmpty()
+        }
+        val root = json.parseToJsonElement(payload).jsonObject
+        return root.arr(itemsKey).orEmpty().mapNotNull { element ->
+            val item = element.jsonObject
+            val id = item.str("id") ?: return@mapNotNull null
+            val title = item.str("name").orEmpty()
+            if (title.isBlank()) return@mapNotNull null
+            val album = item.obj("album")
+            val artists = item.arr("artists").orEmpty().mapNotNull { it.jsonObject.str("name") }
+            val images = album?.arr("images").orEmpty()
+            val artwork = images.mapNotNull { it.jsonObject.str("url") }.firstOrNull()
+            SpotifyTrack(
+                id = id,
+                title = title,
+                artist = artists.joinToString(", "),
+                album = album?.str("name"),
+                durationMs = item.int("duration_ms") ?: 0,
+                imageUrl = artwork,
+            )
+        }
+    }
+
     /** Every playlist in the library, however many pages it takes. */
     suspend fun playlists(): List<SpotifyPlaylist> = withContext(Dispatchers.IO) {
         val headers = authHeaders()
