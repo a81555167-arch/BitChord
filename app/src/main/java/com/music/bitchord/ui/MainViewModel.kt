@@ -1824,9 +1824,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * tracks once and caches those matches. If Spotify doesn't grant the
      * required Web API scopes, the ordinary BitChord Home remains unaffected.
      */
-    private suspend fun spotifyHomeShelves(accountKey: String): List<HomeShelf> {
+    private suspend fun spotifyHomeShelves(
+        accountKey: String,
+        forceRefresh: Boolean = false,
+    ): List<HomeShelf> {
         val topCache = SpotifyLibraryCache.getTracks(accountKey, "home-top")
-        val topTracks = if (topCache != null && SpotifyLibraryCache.areTracksFresh(accountKey, "home-top")) {
+        val topTracks = if (!forceRefresh && topCache != null && SpotifyLibraryCache.areTracksFresh(accountKey, "home-top")) {
             topCache
         } else {
             val fetched = runCatching { SpotifyLibrary.topTracks(6) }
@@ -1836,7 +1839,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         val recommendationCache = SpotifyLibraryCache.getTracks(accountKey, "home-recommended")
         val recommended = if (
-            recommendationCache != null &&
+            !forceRefresh && recommendationCache != null &&
             SpotifyLibraryCache.areTracksFresh(accountKey, "home-recommended")
         ) {
             recommendationCache
@@ -1911,6 +1914,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Refreshes the core feed without blanking the current Play page first. */
     private suspend fun refreshHome(identity: String?) = coroutineScope {
         val recent = if (_signedIn.value) async { YtMusicRepository.homeRecentlyPlayed() } else null
+        val spotifyAccountKey = AppSettings.spotifySpdcToken.value
+            .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+        val spotify = spotifyAccountKey?.let { key ->
+            async { runCatching { spotifyHomeShelves(key, forceRefresh = true) }.getOrDefault(emptyList()) }
+        }
         YtMusicRepository.home().onSuccess { feed ->
             if (identity != listenerKey()) return@onSuccess
             homeContinuation = feed.continuation
@@ -1921,6 +1929,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
+        }
+        spotify?.await()?.getOrNull()?.let { shelves ->
+            if (identity == listenerKey() && shelves.isNotEmpty()) publishHomeShelves(shelves)
         }
     }
 
