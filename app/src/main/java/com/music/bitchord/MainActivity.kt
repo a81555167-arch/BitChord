@@ -2324,7 +2324,7 @@ private fun BitChordApp(
                 if (song.spotifyTrackId in spotifyLikedIds) LikeStatus.LIKE else LikeStatus.INDIFFERENT
             } else likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
             onToggleLike = {
-                song.spotifyTrackId?.let(viewModel::toggleSpotifyLike) ?: viewModel.toggleLike(song.videoId)
+                song.spotifyTrackId?.let { viewModel.toggleSpotifyLike(it, song) } ?: viewModel.toggleLike(song.videoId)
             },
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
@@ -4245,7 +4245,7 @@ private fun BitChordApp(
                 // The sheet stays up for a rating: it shows the new state
                 // in place, and people often thumb a song and then queue it.
                 onToggleLike = {
-                 song.spotifyTrackId?.let(viewModel::toggleSpotifyLike) ?: viewModel.toggleLike(song.videoId)
+                 song.spotifyTrackId?.let { viewModel.toggleSpotifyLike(it, song) } ?: viewModel.toggleLike(song.videoId)
              },
                 onToggleDislike = {
                     val previousStatus = viewModel.toggleDislike(song.videoId)
