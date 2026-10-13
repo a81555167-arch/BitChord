@@ -75,7 +75,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.music.bitchord"
+        applicationId = "com.music.ftadiscovery"
         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
@@ -118,12 +118,13 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
-            applicationId = "com.dev.bitchord"
-            resValue("string", "app_name", "Fta Dev")
+            applicationId = "com.dev.ftadiscovery"
+            resValue("string", "app_name", "Fta Discovery Dev")
         }
         create("prod") {
             dimension = "env"
-            // Matches defaultConfig — this is the package already shipped/installed.
+            applicationId = "com.music.ftadiscovery"
+            resValue("string", "app_name", "Fta Discovery")
         }
     }
 
