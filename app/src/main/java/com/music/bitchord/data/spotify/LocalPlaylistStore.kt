@@ -54,6 +54,7 @@ object LocalPlaylistStore {
                         albumId = sObj.optString("albumId", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         albumName = sObj.optString("albumName", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         isVideo = sObj.optBoolean("isVideo", false),
+                        spotifyTrackId = sObj.optString("spotifyTrackId", null).takeIf { !it.isNullOrBlank() && it != "null" },
                     )
                     songs.add(song)
                 }
@@ -114,6 +115,7 @@ object LocalPlaylistStore {
                     sObj.put("albumId", song.albumId)
                     sObj.put("albumName", song.albumName)
                     sObj.put("isVideo", song.isVideo)
+                    sObj.put("spotifyTrackId", song.spotifyTrackId)
                     songsArray.put(sObj)
                 }
                 pObj.put("songs", songsArray)
