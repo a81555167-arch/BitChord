@@ -48,3 +48,6 @@ jobs:
 
       - name: Compile production debug Kotlin
         run: ./gradlew :app:compileProdDebugKotlin --stacktrace
+
+      - name: Assemble production debug APK
+        run: ./gradlew :app:assembleProdDebug --stacktrace
