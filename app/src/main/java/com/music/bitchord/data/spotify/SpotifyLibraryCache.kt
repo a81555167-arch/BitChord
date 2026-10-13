@@ -9,10 +9,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Persistent local cache for the Spotify library.
- *
- * This cache stores playlist and track metadata only.
- * It does not store audio files or Spotify authentication tokens.
+ * Persistent cache for Spotify library metadata.
+ * Authentication tokens and audio files are never stored here.
  */
 object SpotifyLibraryCache {
 
@@ -41,8 +39,7 @@ object SpotifyLibraryCache {
         }.writableDatabase
 
     private fun read(key: String): String? {
-        val db = database()
-        return db.query(
+        return database().query(
             TABLE,
             arrayOf(VALUE_COLUMN),
             "$KEY_COLUMN = ?",
@@ -69,7 +66,10 @@ object SpotifyLibraryCache {
         )
     }
 
-    fun savePlaylists(playlists: List<SpotifyPlaylist>) {
+    fun savePlaylists(
+        accountKey: String,
+        playlists: List<SpotifyPlaylist>,
+    ) {
         val array = JSONArray()
 
         playlists.forEach { playlist ->
@@ -82,11 +82,11 @@ object SpotifyLibraryCache {
             )
         }
 
-        write("playlists", array.toString())
+        write("playlists:$accountKey", array.toString())
     }
 
-    fun getPlaylists(): List<SpotifyPlaylist>? {
-        val cached = read("playlists") ?: return null
+    fun getPlaylists(accountKey: String): List<SpotifyPlaylist>? {
+        val cached = read("playlists:$accountKey") ?: return null
 
         return runCatching {
             val array = JSONArray(cached)
@@ -104,6 +104,7 @@ object SpotifyLibraryCache {
     }
 
     fun saveTracks(
+        accountKey: String,
         playlistId: String,
         tracks: List<SpotifyTrack>,
     ) {
@@ -121,11 +122,14 @@ object SpotifyLibraryCache {
             )
         }
 
-        write("tracks:$playlistId", array.toString())
+        write("tracks:$accountKey:$playlistId", array.toString())
     }
 
-    fun getTracks(playlistId: String): List<SpotifyTrack>? {
-        val cached = read("tracks:$playlistId") ?: return null
+    fun getTracks(
+        accountKey: String,
+        playlistId: String,
+    ): List<SpotifyTrack>? {
+        val cached = read("tracks:$accountKey:$playlistId") ?: return null
 
         return runCatching {
             val array = JSONArray(cached)
@@ -168,7 +172,7 @@ object SpotifyLibraryCache {
             oldVersion: Int,
             newVersion: Int,
         ) {
-            // Preserve existing cache data during future upgrades.
+            // Preserve cached entries during upgrades.
         }
     }
 
