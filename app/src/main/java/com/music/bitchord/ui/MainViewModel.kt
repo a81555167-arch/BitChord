@@ -2638,38 +2638,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
                 }
             }
-            
-val accountKey = AppSettings.spotifySpdcToken.value
-    .takeIf { it.isNotBlank() }
-    ?.let(::spotifyCacheAccountKey)
 
-val cachedTracks = accountKey
-    ?.let { SpotifyLibraryCache.getTracks(it, playlistId) }
-    .orEmpty()
+            val accountKey = AppSettings.spotifySpdcToken.value
+                .takeIf { it.isNotBlank() }
+                ?.let(::spotifyCacheAccountKey)
+            val cachedTracksResult = accountKey?.let {
+                SpotifyLibraryCache.getTracks(it, playlistId)
+            }
+            val cachedTracks = cachedTracksResult.orEmpty()
 
-// Display saved tracks immediately while the network refresh runs.
-if (cachedTracks.isNotEmpty()) {
-    setSongs(UiState.Success(cachedTracks.map { it.asPendingSong() }))
-}
+            // Cached rows are usable immediately, even offline.
+            if (cachedTracks.isNotEmpty()) {
+                setSongs(UiState.Success(cachedTracks.map { it.asPendingSong() }))
+            }
 
-val freshResult = runCatching {
-    SpotifyLibrary.tracks(playlistId) { soFar ->
-        setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
-    }
-}
-
-val tracks = freshResult.getOrElse { failure ->
-    if (cachedTracks.isNotEmpty()) {
-        cachedTracks
-    } else {
-        setSongs(UiState.Error(failure.message ?: text(R.string.failed)))
-        return@launch
-    }
-}
-
-if (freshResult.isSuccess && accountKey != null) {
-    SpotifyLibraryCache.saveTracks(accountKey, playlistId, tracks)
-}
+            val tracks = if (
+                accountKey != null &&
+                cachedTracksResult != null &&
+                SpotifyLibraryCache.areTracksFresh(accountKey, playlistId)
+            ) {
+                // A fresh page avoids both the Spotify download and pagination requests.
+                cachedTracksResult
+            } else {
+                val freshResult = runCatching {
+                    SpotifyLibrary.tracks(playlistId) { soFar ->
+                        setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
+                    }
+                }
+                val freshTracks = freshResult.getOrElse { failure ->
+                    if (cachedTracks.isNotEmpty()) {
+                        cachedTracks
+                    } else {
+                        setSongs(UiState.Error(failure.message ?: text(R.string.failed)))
+                        return@launch
+                    }
+                }
+                if (freshResult.isSuccess && accountKey != null) {
+                    SpotifyLibraryCache.saveTracks(accountKey, playlistId, freshTracks)
+                }
+                freshTracks
+            }
 
             if (tracks.isEmpty()) {
                 setSongs(UiState.Error(text(R.string.spotify_empty_tracks)))
@@ -2681,11 +2689,25 @@ if (freshResult.isSuccess && accountKey != null) {
                     launch {
                         gate.withPermit {
                             if (!open()) return@withPermit
-                            val match = runCatching { SpotifyImporter.matchTrack(track) }.getOrNull()
-                            val found = match?.copy(thumbnailUrl = match.thumbnailUrl ?: track.imageUrl)
-                                ?: track.asPendingSong().let {
-                                    it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
-                                }
+                            val cachedMatch = accountKey?.let {
+                                SpotifyLibraryCache.getMatchedSong(it, playlistId, track.id)
+                            }
+                            val matchResult = if (cachedMatch == null) {
+                                runCatching { SpotifyImporter.matchTrack(track) }
+                            } else {
+                                null
+                            }
+                            val match = cachedMatch ?: matchResult?.getOrNull()?.copy(
+                                thumbnailUrl = matchResult.getOrNull()?.thumbnailUrl ?: track.imageUrl
+                            ) ?: track.asPendingSong().let {
+                                it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
+                            }
+                            // Cache successful matches and confirmed misses; a transient request
+                            // failure is not persisted, so it can be retried on the next open.
+                            if (cachedMatch == null && matchResult?.isSuccess == true && accountKey != null) {
+                                SpotifyLibraryCache.saveMatchedSong(accountKey, playlistId, track.id, match)
+                            }
+                            val found = match
                             _detailStack.value = _detailStack.value.map { page ->
                                 val list = (page.songs as? UiState.Success<List<Song>>)?.data
                                 if (page.browseId == browseId && list != null && index < list.size) {
