@@ -2,7 +2,7 @@ name: Android Release APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/spotify-library-cache]
   workflow_dispatch:
 
 jobs:
