@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
-
+import com.music.bitchord.data.spotify.SpotifyLibraryCache
+import java.security.MessageDigest
+import kotlinx.coroutines.CancellationException
 import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Build
@@ -94,22 +96,46 @@ fun SpotifyLibraryScreen(
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-
+val cookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     BackHandler(enabled = showLogin) { showLogin = false }
+val cacheAccountKey = remember(cookie) {
+    cookie.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+}
+    
+LaunchedEffect(cookie, cacheAccountKey) {
+    val accountKey = cacheAccountKey
 
-    LaunchedEffect(cookie) {
-        if (cookie.isBlank()) {
-            playlists = emptyList()
-            error = null
-            return@LaunchedEffect
-        }
-        loading = true
+    if (cookie.isBlank() || accountKey == null) {
+        playlists = emptyList()
+        loading = false
         error = null
-        runCatching { SpotifyLibrary.playlists() }
-            .onSuccess { playlists = it }
-            .onFailure { error = it.message }
+        return@LaunchedEffect
+    }
+
+    // Show saved playlists immediately, if available.
+    playlists = SpotifyLibraryCache.getPlaylists(accountKey).orEmpty()
+
+    loading = true
+    error = null
+
+    try {
+        // Refresh the cache with the latest Spotify library.
+        val freshPlaylists = SpotifyLibrary.playlists()
+
+        SpotifyLibraryCache.savePlaylists(accountKey, freshPlaylists)
+        playlists = freshPlaylists
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // Keep cached playlists visible if refreshing fails.
+        if (playlists.isEmpty()) {
+            error = e.message ?: "Could not load Spotify library"
+        }
+    } finally {
         loading = false
     }
+}
+
 
     if (showLogin) {
         SpotifyLogin(
@@ -330,3 +356,9 @@ private fun SpotifyLogin(
         onRelease = { it.destroy() },
     )
 }
+private fun spotifyCacheAccountKey(cookie: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(cookie.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte ->
+            "%02x".format(byte.toInt() and 0xff)
+        }
