@@ -182,7 +182,15 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { refreshCounter++ }, enabled = !loading) {
+                TextButton(
+                    onClick = {
+                        cacheAccountKey?.let { accountKey ->
+                            playlists.forEach { SpotifyLibraryCache.invalidateTracks(accountKey, it.id) }
+                        }
+                        refreshCounter++
+                    },
+                    enabled = !loading,
+                ) {
                     Text("Refresh")
                 }
             }
