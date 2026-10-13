@@ -1766,7 +1766,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (spotifyAccountKey != null) {
                 launch {
                     try {
-                        val shelves = spotifyHomeShelves(spotifyAccountKey)
+                        val shelves = runCatching { spotifyHomeShelves(spotifyAccountKey) }.getOrDefault(emptyList())
                         if (isCurrentHomeLoad(identity, generation) && shelves.isNotEmpty()) {
                             publishHomeShelves(shelves)
                         }
