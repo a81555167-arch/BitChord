@@ -191,6 +191,13 @@ object SpotifyLibraryCache {
         }.getOrNull()
     }
 
+    /** Drop a page after a successful edit so the next visit re-syncs with Spotify. */
+    fun invalidateTracks(accountKey: String, playlistId: String) {
+        val db = database()
+        db.delete(TABLE, "$KEY_COLUMN = ?", arrayOf("tracks:$accountKey:$playlistId"))
+        db.delete(TABLE, "$KEY_COLUMN = ?", arrayOf("updated:tracks:$accountKey:$playlistId"))
+    }
+
     /** Avoid re-downloading an unchanged library on every screen visit. */
     fun arePlaylistsFresh(accountKey: String): Boolean =
         isFresh("playlists:$accountKey", PLAYLIST_TTL_MS)
