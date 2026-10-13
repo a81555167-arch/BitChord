@@ -33,7 +33,6 @@ import org.jetbrains.compose.resources.painterResource
 import com.music.bitchord.sharedui.resources.spotify_logo
 import com.music.bitchord.sharedui.resources.Res
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
