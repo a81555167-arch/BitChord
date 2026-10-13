@@ -620,6 +620,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             liked + overrides
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    private val _spotifyLikedTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    val spotifyLikedTrackIds: StateFlow<Set<String>> = _spotifyLikedTrackIds.asStateFlow()
+
     fun likeStatusOf(videoId: String): LikeStatus =
         likeStatuses.value[videoId] ?: LikeStatus.INDIFFERENT
 
@@ -1930,7 +1933,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
         }
-        spotify?.await()?.getOrNull()?.let { shelves ->
+        spotify?.await()?.let { shelves ->
             if (identity == listenerKey() && shelves.isNotEmpty()) publishHomeShelves(shelves)
         }
     }
