@@ -15,7 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Fta Discovery"
+rootProject.name = "SpotiChord"
 include(":shared")
 include(":sharedUi")
 include(":desktopApp")
