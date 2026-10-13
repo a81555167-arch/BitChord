@@ -3261,6 +3261,11 @@ if (freshResult.isSuccess && accountKey != null) {
             text(R.string.youtube_request_rejected)
         else -> message ?: text(R.string.something_went_wrong)
     }
-
+private fun spotifyCacheAccountKey(token: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(token.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte ->
+            "%02x".format(byte.toInt() and 0xff)
+        }
     private fun text(id: Int): String = getApplication<Application>().getString(id)
 }
