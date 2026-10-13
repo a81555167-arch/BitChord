@@ -2067,6 +2067,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 items = recommendationItems,
             )
         }
+
+        // If this Web Player session cannot use the personalized Web API scopes,
+        // still surface the connected account's real library on Home. Only make
+        // this extra paginated request when both personalized shelves are empty.
+        if (shelves.isEmpty()) {
+            val cachedPlaylists = SpotifyLibraryCache.getPlaylists(accountKey)
+            val libraryPlaylists = if (
+                !forceRefresh && cachedPlaylists != null &&
+                SpotifyLibraryCache.arePlaylistsFresh(accountKey)
+            ) {
+                cachedPlaylists
+            } else if (
+                !forceRefresh &&
+                SpotifyLibraryCache.isFeedFailureCoolingDown(accountKey, "home-playlists")
+            ) {
+                cachedPlaylists.orEmpty()
+            } else {
+                runCatching { SpotifyLibrary.playlists() }
+                    .onSuccess { fresh ->
+                        SpotifyLibraryCache.clearFeedFailure(accountKey, "home-playlists")
+                        SpotifyLibraryCache.savePlaylists(accountKey, fresh)
+                    }
+                    .getOrElse {
+                        SpotifyLibraryCache.markFeedFailure(accountKey, "home-playlists")
+                        cachedPlaylists.orEmpty()
+                    }
+            }
+            val playlistItems = libraryPlaylists.take(8).map { playlist ->
+                ShelfItem(
+                    title = playlist.name,
+                    subtitle = playlist.owner ?: "Spotify playlist",
+                    thumbnailUrl = playlist.imageUrl,
+                    videoId = null,
+                    browseId = SPOTIFY_PAGE_PREFIX + playlist.id,
+                )
+            }
+            if (playlistItems.isNotEmpty()) {
+                shelves += HomeShelf(
+                    title = "Your Spotify library",
+                    subtitle = "From your connected Spotify account",
+                    items = playlistItems,
+                )
+            }
+        }
         return shelves
     }
 
