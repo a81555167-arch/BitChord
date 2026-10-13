@@ -1610,6 +1610,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
+        // Restore the heart state from the local Spotify cache without a network request.
+        viewModelScope.launch(Dispatchers.IO) {
+            AppSettings.spotifySpdcToken.collect { token ->
+                val accountKey = token.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                val cachedLiked = accountKey?.let {
+                    SpotifyLibraryCache.getTracks(it, SpotifyLibrary.LIKED_ID)
+                }
+                _spotifyLikedTrackIds.value = cachedLiked.orEmpty().mapTo(mutableSetOf()) { it.id }
+            }
+        }
         loadHome()
         loadExplore()
         if (_signedIn.value) {
