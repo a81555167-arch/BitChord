@@ -275,6 +275,10 @@ private fun SpotifyHomeScreen(
     onOpenLibrary: () -> Unit,
 ) {
     var rendererGeneration by remember { mutableIntStateOf(0) }
+    var homeWebView by remember { mutableStateOf<WebView?>(null) }
+    BackHandler(enabled = homeWebView?.canGoBack == true) {
+        homeWebView?.goBack()
+    }
     Column(modifier.fillMaxSize().padding(contentPadding)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -310,6 +314,11 @@ private fun SpotifyHomeScreen(
                         // Prefer locally cached page resources to downloading them again.
                         settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                         settings.mediaPlaybackRequiresUserGesture = true
+                        // Present as a regular mobile browser, not an embedded WebView,
+                        // which Spotify's web player may otherwise reject.
+                        settings.userAgentString = settings.userAgentString
+                            .replace("; wv", "")
+                            .replace(" Version/4.0", "")
                         if (Build.VERSION.SDK_INT >= 33) {
                             settings.isAlgorithmicDarkeningAllowed = false
                         } else if (Build.VERSION.SDK_INT >= 29) {
@@ -317,6 +326,7 @@ private fun SpotifyHomeScreen(
                             settings.forceDark = WebSettings.FORCE_DARK_OFF
                         }
                         setBackgroundColor(0xFF121212.toInt())
+                        homeWebView = this
                         val cookies = CookieManager.getInstance()
                         cookies.setAcceptCookie(true)
                         cookies.setAcceptThirdPartyCookies(this, true)
@@ -339,6 +349,7 @@ private fun SpotifyHomeScreen(
                                 view: WebView,
                                 detail: RenderProcessGoneDetail,
                             ): Boolean {
+                                homeWebView = null
                                 rendererGeneration += 1
                                 return true
                             }
@@ -346,6 +357,7 @@ private fun SpotifyHomeScreen(
                     }
                 },
                 onRelease = {
+                    if (homeWebView === it) homeWebView = null
                     it.stopLoading()
                     it.destroy()
                 },
