@@ -134,7 +134,7 @@ object SpotifyLibrary {
         Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IllegalStateException(
-                    "Spotify could not update Liked Songs (\u0024{response.code}). The connected session may not allow library edits."
+                    "Spotify could not update Liked Songs (" + response.code + "). The connected session may not allow library edits."
                 )
             }
         }
