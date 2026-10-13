@@ -286,24 +286,43 @@ private fun SpotifyHomeScreen(
     var feedError by remember { mutableStateOf<String?>(null) }
     var exploreUri by remember(sessionCookie) { mutableStateOf<String?>(null) }
     var feedRefresh by remember { mutableIntStateOf(0) }
+    var lastHandledFeedRefresh by remember { mutableIntStateOf(0) }
+    val feedAccountKey = remember(sessionCookie) { spotifyCacheAccountKey(sessionCookie) }
     BackHandler(enabled = homeWebView?.canGoBack() == true && feedMode == "web") {
         homeWebView?.goBack()
     }
 
     LaunchedEffect(sessionCookie, feedMode, exploreUri, feedRefresh) {
         if (feedMode == "web") return@LaunchedEffect
-        feedLoading = true
+        val feedId = if (feedMode == "home") "home" else "explore:${exploreUri.orEmpty()}"
+        val cached = SpotifyLibraryCache.getFeedSections(feedAccountKey, feedId)
+        feedSections = cached.orEmpty()
         feedError = null
+        val manualRefresh = feedRefresh != lastHandledFeedRefresh
+        lastHandledFeedRefresh = feedRefresh
+        if (!manualRefresh && cached != null &&
+            SpotifyLibraryCache.areFeedSectionsFresh(feedAccountKey, feedId)
+        ) {
+            feedLoading = false
+            return@LaunchedEffect
+        }
+        feedLoading = true
         try {
-            feedSections = if (feedMode == "home") {
+            val fresh = if (feedMode == "home") {
                 SpotifyDiscovery.home()
             } else {
                 SpotifyDiscovery.explore(sectionUri = exploreUri)
             }
+            SpotifyLibraryCache.saveFeedSections(feedAccountKey, feedId, fresh)
+            SpotifyLibraryCache.clearFeedFailure(feedAccountKey, feedId)
+            feedSections = fresh
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            feedError = e.message ?: "Could not load Spotify discovery feed"
+            SpotifyLibraryCache.markFeedFailure(feedAccountKey, feedId)
+            if (cached.isNullOrEmpty()) {
+                feedError = e.message ?: "Could not load Spotify discovery feed"
+            }
         } finally {
             feedLoading = false
         }
