@@ -140,6 +140,80 @@ object SpotifyLibrary {
         }
     }
 
+    /** Add a catalogue track to a Spotify playlist using the session's available Web API scopes. */
+    suspend fun addTrackToPlaylist(
+        playlistId: String,
+        spotifyTrackId: String?,
+        title: String,
+        artist: String,
+    ) = withContext(Dispatchers.IO) {
+        require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
+        val headers = authHeaders()
+        val trackId = spotifyTrackId?.takeIf { it.matches(Regex("[A-Za-z0-9]{22}")) }
+            ?: searchTrackId(title, artist, headers)
+            ?: throw IllegalStateException("Could not find this song in Spotify's catalogue")
+        val body = buildJsonObject {
+            putJsonArray("uris") { add("spotify:track:$trackId") }
+        }.toString().toRequestBody(mediaType)
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId/tracks")
+            .apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                post(body)
+            }
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not add this track (" + response.code + "). The connected session may not allow playlist edits."
+                )
+            }
+        }
+    }
+
+    /** Remove one track identity from a Spotify playlist. */
+    suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) = withContext(Dispatchers.IO) {
+        require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
+        require(trackId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify track id" }
+        val headers = authHeaders()
+        val body = buildJsonObject {
+            putJsonArray("tracks") {
+                add(buildJsonObject { put("uri", "spotify:track:$trackId") })
+            }
+        }.toString().toRequestBody(mediaType)
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId/tracks")
+            .apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                delete(body)
+            }
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not remove this track (" + response.code + "). The connected session may not allow playlist edits."
+                )
+            }
+        }
+    }
+
+    private fun searchTrackId(title: String, artist: String, headers: Map<String, String>): String? {
+        val query = java.net.URLEncoder.encode("$title $artist", Charsets.UTF_8.name())
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/search?q=$query&type=track&limit=1")
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
+            .get()
+            .build()
+        val payload = Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("Spotify search failed (" + response.code + ")")
+            }
+            response.body?.string().orEmpty()
+        }
+        return json.parseToJsonElement(payload).jsonObject
+            .obj("tracks")?.arr("items")?.firstOrNull()?.jsonObject?.str("id")
+    }
+
     private fun playlistPage(headers: Map<String, String>, offset: Int): Triple<List<SpotifyPlaylist>, Int, Int> {
         val variables = buildJsonObject {
             putJsonArray("filters") { add("Playlists") }
