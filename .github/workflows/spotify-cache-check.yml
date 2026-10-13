@@ -30,7 +30,9 @@ jobs:
           packages: platform-tools
 
       - name: Install Android 17 preview platform
-        run: sdkmanager --channel=3 "platforms;android-37"
+        run: |
+          sdkmanager --channel=3 "platforms;android-37.0"
+          ln -sfn "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
 
       - name: Create local properties
         run: |
