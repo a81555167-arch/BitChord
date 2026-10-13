@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import org.json.JSONObject
+import com.music.bitchord.data.model.Song
 
 /**
  * Persistent cache for Spotify library metadata.
@@ -149,6 +150,42 @@ object SpotifyLibraryCache {
                     imageUrl = item.nullableString("imageUrl"),
                 )
             }
+        }.getOrNull()
+    }
+
+    /**
+     * Cache the resolved BitChord/YouTube match for an imported Spotify track.
+     * This prevents repeating one search request per song every time a playlist opens.
+     */
+    fun saveMatchedSong(accountKey: String, playlistId: String, spotifyTrackId: String, song: Song) {
+        val value = JSONObject()
+            .put("videoId", song.videoId)
+            .put("title", song.title)
+            .put("artist", song.artist)
+            .putNullable("thumbnailUrl", song.thumbnailUrl)
+            .putNullable("durationText", song.durationText)
+            .putNullable("artistId", song.artistId)
+            .putNullable("albumId", song.albumId)
+            .putNullable("albumName", song.albumName)
+            .put("isVideo", song.isVideo)
+        write("match:$accountKey:$playlistId:$spotifyTrackId", value.toString())
+    }
+
+    fun getMatchedSong(accountKey: String, playlistId: String, spotifyTrackId: String): Song? {
+        val raw = read("match:$accountKey:$playlistId:$spotifyTrackId") ?: return null
+        return runCatching {
+            val item = JSONObject(raw)
+            Song(
+                videoId = item.getString("videoId"),
+                title = item.getString("title"),
+                artist = item.getString("artist"),
+                thumbnailUrl = item.nullableString("thumbnailUrl"),
+                durationText = item.nullableString("durationText"),
+                artistId = item.nullableString("artistId"),
+                albumId = item.nullableString("albumId"),
+                albumName = item.nullableString("albumName"),
+                isVideo = item.optBoolean("isVideo", false),
+            )
         }.getOrNull()
     }
 
