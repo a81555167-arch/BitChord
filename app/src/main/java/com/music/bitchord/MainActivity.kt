@@ -1857,6 +1857,7 @@ private fun BitChordApp(
                 title = item.title,
                 artist = InnertubeParser.artistFromSubtitle(item.subtitle),
                 thumbnailUrl = item.thumbnailUrl,
+                spotifyTrackId = item.spotifyTrackId,
             )
         }
     }
