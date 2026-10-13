@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: spotify-cache-branch-build-arm64-v8a
+  group: spotify-cache-branch-build-arm64-final
   cancel-in-progress: true
 
 jobs:
