@@ -19,6 +19,8 @@ object SpotifyLibraryCache {
     private const val DATABASE_VERSION = 1
     private const val PLAYLIST_TTL_MS = 6L * 60 * 60 * 1000
     private const val TRACK_TTL_MS = 12L * 60 * 60 * 1000
+    // Back off failed Home API calls without pretending an error is a valid empty feed.
+    private const val FEED_FAILURE_TTL_MS = 15L * 60 * 1000
     private const val TABLE = "cache_entries"
     private const val KEY_COLUMN = "cache_key"
     private const val VALUE_COLUMN = "cache_value"
@@ -220,6 +222,18 @@ object SpotifyLibraryCache {
     /** Track pages are larger, so keep a longer freshness window. */
     fun areTracksFresh(accountKey: String, playlistId: String): Boolean =
         isFresh("tracks:$accountKey:$playlistId", TRACK_TTL_MS)
+
+    /** Short retry cooldown for failed personalized-feed calls, separate from successful empty results. */
+    fun isFeedFailureCoolingDown(accountKey: String, feedId: String): Boolean =
+        isFresh("feed-failure:$accountKey:$feedId", FEED_FAILURE_TTL_MS)
+
+    fun markFeedFailure(accountKey: String, feedId: String) {
+        write("feed-failure:$accountKey:$feedId", System.currentTimeMillis().toString())
+    }
+
+    fun clearFeedFailure(accountKey: String, feedId: String) {
+        database().delete(TABLE, "$KEY_COLUMN = ?", arrayOf("feed-failure:$accountKey:$feedId"))
+    }
 
     private fun markFresh(key: String) {
         write("updated:$key", System.currentTimeMillis().toString())
