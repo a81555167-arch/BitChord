@@ -403,6 +403,7 @@ fun MediaItem.toSong() = Song(
     playbackSourceType = mediaMetadata.extras?.getString(EXTRA_PLAYBACK_SOURCE_TYPE)
         ?.let { runCatching { PlaybackSourceType.valueOf(it) }.getOrNull() },
     playbackSourceId = mediaMetadata.extras?.getString(EXTRA_PLAYBACK_SOURCE_ID),
+    spotifyTrackId = mediaMetadata.extras?.getString(EXTRA_SPOTIFY_TRACK_ID),
     localUri = mediaMetadata.extras?.getString(EXTRA_LOCAL_URI),
     localPath = mediaMetadata.extras?.getString(EXTRA_LOCAL_PATH),
 )
@@ -448,6 +449,7 @@ private const val EXTRA_RADIO_NAME = "bitchord.radioName"
 private const val EXTRA_PLAYBACK_SOURCE = "bitchord.playbackSource"
 private const val EXTRA_PLAYBACK_SOURCE_TYPE = "bitchord.playbackSourceType"
 private const val EXTRA_PLAYBACK_SOURCE_ID = "bitchord.playbackSourceId"
+private const val EXTRA_SPOTIFY_TRACK_ID = "bitchord.spotifyTrackId"
 
 /**
  * The artist and album pages this track hangs under, when they are known.
@@ -647,7 +649,8 @@ fun Song.toMediaItem(): MediaItem {
                     offlineUri != null || durationText != null ||
                     artistId != null || albumId != null || setVideoId != null ||
                     isExplicit != null || isVideo || isVideoOrigin || radioName != null ||
-                    playbackSource != null || playbackSourceType != null || playbackSourceId != null
+                    playbackSource != null || playbackSourceType != null || playbackSourceId != null ||
+                    spotifyTrackId != null
                 ) {
                     setExtras(
                         bundleOf(
@@ -658,6 +661,7 @@ fun Song.toMediaItem(): MediaItem {
                             EXTRA_PLAYBACK_SOURCE to playbackSource,
                             EXTRA_PLAYBACK_SOURCE_TYPE to playbackSourceType?.name,
                             EXTRA_PLAYBACK_SOURCE_ID to playbackSourceId,
+                            EXTRA_SPOTIFY_TRACK_ID to spotifyTrackId,
                             EXTRA_LOCAL_URI to offlineUri,
                             EXTRA_LOCAL_PATH to localPath,
                             EXTRA_DURATION to durationText,
