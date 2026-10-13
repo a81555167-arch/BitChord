@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: spotify-cache-branch-build-arm64-v8a
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   android-build:
