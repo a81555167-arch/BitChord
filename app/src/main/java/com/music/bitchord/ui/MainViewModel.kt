@@ -3043,6 +3043,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 val freshResult = runCatching {
                     SpotifyLibrary.tracks(playlistId) { soFar ->
+                        // Keep each completed Spotify page on disk while importing.
+                        // If the connection drops mid-playlist, the partial library
+                        // remains usable offline but is not marked as complete.
+                        if (accountKey != null) {
+                            SpotifyLibraryCache.saveTracks(
+                                accountKey = accountKey,
+                                playlistId = playlistId,
+                                tracks = soFar,
+                                markAsFresh = false,
+                            )
+                        }
                         setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
                     }
                 }
