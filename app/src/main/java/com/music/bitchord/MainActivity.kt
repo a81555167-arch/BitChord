@@ -818,7 +818,7 @@ private fun BitChordApp(
     var songSortMenuOpen by remember { mutableStateOf(false) }
     val likeStatuses by viewModel.likeStatuses.collectAsStateWithLifecycle()
     val spotifyLikedIds by viewModel.spotifyLikedTrackIds.collectAsStateWithLifecycle()
-    var spotifyStarredSongKey by remember { mutableStateOf<String?>(null) }
+    var spotifyStarredSongKey by remember(spotifyCookie) { mutableStateOf<String?>(null) }
     // Which tracks are being held on YouTube's own upload, so the player's menu
     // offers the way back out of a revert rather than the revert again.
     val pinnedToOriginal by OriginalVersion.pinned.collectAsStateWithLifecycle()
