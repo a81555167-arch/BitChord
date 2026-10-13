@@ -15,7 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Fta"
+rootProject.name = "MyBit"
 include(":shared")
 include(":sharedUi")
 include(":desktopApp")
