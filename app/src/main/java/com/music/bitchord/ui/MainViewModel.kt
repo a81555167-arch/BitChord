@@ -1967,15 +1967,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val topCache = SpotifyLibraryCache.getTracks(accountKey, "home-top")
         val topTracks = if (!forceRefresh && topCache != null && SpotifyLibraryCache.areTracksFresh(accountKey, "home-top")) {
             topCache
+        } else if (!forceRefresh && SpotifyLibraryCache.isFeedFailureCoolingDown(accountKey, "home-top")) {
+            topCache.orEmpty()
         } else {
             val fetched = runCatching { SpotifyLibrary.topTracks(6) }.getOrNull()
             if (fetched != null) {
+                SpotifyLibraryCache.clearFeedFailure(accountKey, "home-top")
                 SpotifyLibraryCache.saveTracks(accountKey, "home-top", fetched)
                 fetched
             } else {
-                // Cache an unavailable result too, so a missing Web API scope
-                // does not trigger the same failed request on every Home visit.
-                if (topCache == null) SpotifyLibraryCache.saveTracks(accountKey, "home-top", emptyList())
+                // Keep stale data if available and back off for 15 minutes; do not
+                // mark an API failure as a successful empty feed for half a day.
+                SpotifyLibraryCache.markFeedFailure(accountKey, "home-top")
                 topCache.orEmpty()
             }
         }
@@ -1986,17 +1989,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             SpotifyLibraryCache.areTracksFresh(accountKey, "home-recommended")
         ) {
             recommendationCache
+        } else if (!forceRefresh && SpotifyLibraryCache.isFeedFailureCoolingDown(accountKey, "home-recommended")) {
+            recommendationCache.orEmpty()
         } else {
             val fetched = runCatching {
                 SpotifyLibrary.recommendations(topTracks.take(5).map { it.id }, 6)
             }.getOrNull()
             if (fetched != null) {
+                SpotifyLibraryCache.clearFeedFailure(accountKey, "home-recommended")
                 SpotifyLibraryCache.saveTracks(accountKey, "home-recommended", fetched)
                 fetched
             } else {
-                if (recommendationCache == null) {
-                    SpotifyLibraryCache.saveTracks(accountKey, "home-recommended", emptyList())
-                }
+                SpotifyLibraryCache.markFeedFailure(accountKey, "home-recommended")
                 recommendationCache.orEmpty()
             }
         }
