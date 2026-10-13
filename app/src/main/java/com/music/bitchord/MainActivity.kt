@@ -150,6 +150,9 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.LibrarySort
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.data.settings.BrandTheme
+import com.music.bitchord.data.spotify.SpotifyLibrary
+import com.music.bitchord.data.spotify.SpotifyLibraryCache
+import com.music.bitchord.data.spotify.SpotifyPlaylist
 import com.music.bitchord.ui.components.AccountProfileSelector
 import com.music.bitchord.ui.components.SpotifyImportAlert
 import com.music.bitchord.ui.screens.AccountAndScrobblingScreen
@@ -314,8 +317,10 @@ import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import java.util.Locale
+import java.security.MessageDigest
 
 /** A full first screen of a native YouTube Music radio before AutoPlay tops it up. */
 /** How much of an artist page's header scrolls away before the top fade begins. */
@@ -654,6 +659,9 @@ private fun BitChordApp(
     // Separate from [songActions] so the menu can close behind it — the picker
     // is the next step, not a second sheet stacked on the first.
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    val spotifyCookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
+    var spotifyPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
+    var spotifyPlaylistsLoading by remember { mutableStateOf(false) }
     // The picker opened from the Library tab, where there is no track and
     // creating the playlist is the whole errand.
     var creatingPlaylist by remember { mutableStateOf(false) }
@@ -816,6 +824,36 @@ private fun BitChordApp(
     val qualityUpgradesInFlight by NerdStats.racingLossless.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val playlistsLoading by viewModel.playlistsLoading.collectAsStateWithLifecycle()
+
+    // Fetch Spotify's playlist picker data only while the picker is open, and
+    // reuse the same persistent TTL cache as the Spotify Library screen.
+    LaunchedEffect(playlistTarget != null || creatingPlaylist, spotifyCookie) {
+        if (playlistTarget == null && !creatingPlaylist) return@LaunchedEffect
+        if (spotifyCookie.isBlank()) {
+            spotifyPlaylists = emptyList()
+            spotifyPlaylistsLoading = false
+            return@LaunchedEffect
+        }
+        val accountKey = spotifyPickerCacheAccountKey(spotifyCookie)
+        val cached = SpotifyLibraryCache.getPlaylists(accountKey)
+        spotifyPlaylists = cached.orEmpty()
+        if (cached != null && SpotifyLibraryCache.arePlaylistsFresh(accountKey)) {
+            spotifyPlaylistsLoading = false
+            return@LaunchedEffect
+        }
+        spotifyPlaylistsLoading = true
+        try {
+            val fresh = SpotifyLibrary.playlists()
+            SpotifyLibraryCache.savePlaylists(accountKey, fresh)
+            spotifyPlaylists = fresh
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Keep cached choices visible if Spotify is offline or the session expired.
+        } finally {
+            spotifyPlaylistsLoading = false
+        }
+    }
 
     // Settings has no tab of its own — it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
@@ -4405,8 +4443,15 @@ private fun BitChordApp(
                 containerColor = MaterialTheme.colorScheme.background,
             ) {
                 PlaylistPickerSheet(
-                    playlists = playlists,
-                    loading = playlistsLoading,
+                    playlists = playlists + spotifyPlaylists.map { spotify ->
+                        com.music.bitchord.data.model.UserPlaylist(
+                            playlistId = "spotify:${spotify.id}",
+                            title = spotify.name,
+                            subtitle = spotify.owner.orEmpty(),
+                            thumbnailUrl = spotify.imageUrl,
+                        )
+                    },
+                    loading = playlistsLoading || spotifyPlaylistsLoading,
                     song = target,
                     startCreating = target == null,
                     onAdd = { picked ->
