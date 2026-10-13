@@ -1,4 +1,3 @@
-
 name: Spotify Cache Branch Build
 
 on:
@@ -27,9 +26,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android platform
-        run: sdkmanager "platforms;android-37"
+        with:
+          packages: 'platform-tools,platforms;android-37'
 
       - name: Create local properties
         run: |
@@ -41,4 +39,3 @@ jobs:
 
       - name: Compile production debug Kotlin
         run: ./gradlew :app:compileProdDebugKotlin
-
