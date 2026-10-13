@@ -19,6 +19,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -2675,15 +2677,9 @@ private fun BitChordApp(
                             // A small horizontal drift gives tab changes a clear,
                             // lightweight motion without fading two transparent pages
                             // through the window background.
-                            slideInHorizontally(
-                                animationSpec = tween(140),
-                                initialOffsetX = { width -> width / 32 },
-                            ) togetherWith slideOutHorizontally(
-                                animationSpec = tween(140),
-                                targetOffsetX = { width -> -width / 32 },
-                            )
+                            EnterTransition.None togetherWith ExitTransition.None
                         } else {
-                            fadeIn(tween(160)) togetherWith fadeOut(tween(120))
+                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
                         }
                     },
                     modifier = Modifier
