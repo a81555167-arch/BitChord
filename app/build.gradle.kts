@@ -75,7 +75,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.music.ftadiscovery"
+        applicationId = "com.music.spotichord"
         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
@@ -118,13 +118,13 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
-            applicationId = "com.dev.ftadiscovery"
-            resValue("string", "app_name", "Fta Discovery Dev")
+            applicationId = "com.dev.spotichord"
+            resValue("string", "app_name", "SpotiChord Dev")
         }
         create("prod") {
             dimension = "env"
             applicationId = "com.music.ftadiscovery"
-            resValue("string", "app_name", "Fta Discovery")
+            resValue("string", "app_name", "SpotiChord")
         }
     }
 
