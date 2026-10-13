@@ -90,10 +90,12 @@ object SpotifyDiscovery {
         }
     }
 
-    suspend fun explore(includePodcasts: Boolean = true): List<SpotifyFeedSection> =
+    suspend fun explore(sectionUri: String? = null, includePodcasts: Boolean = true): List<SpotifyFeedSection> =
         withContext(Dispatchers.IO) {
             val locale = Locale.getDefault()
-            val url = BROWSE_URL.toHttpUrl().newBuilder()
+            val urlBuilder = BROWSE_URL.toHttpUrl().newBuilder()
+            sectionUri?.substringAfterLast(':')?.takeIf { it.isNotBlank() }?.let(urlBuilder::addPathSegment)
+            val url = urlBuilder
                 .addQueryParameter("platform", "android")
                 .addQueryParameter("client-timezone", ZoneId.systemDefault().id)
                 .addQueryParameter("podcast", includePodcasts.toString())
