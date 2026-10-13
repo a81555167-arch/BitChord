@@ -123,7 +123,7 @@ android {
         }
         create("prod") {
             dimension = "env"
-            applicationId = "com.music.ftadiscovery"
+            applicationId = "com.music.spotichord"
             resValue("string", "app_name", "SpotiChord")
         }
     }
