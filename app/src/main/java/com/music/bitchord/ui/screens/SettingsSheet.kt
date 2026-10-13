@@ -1394,7 +1394,7 @@ fun SettingsScreen(
         if (!search.anyMatch) {
             MessageState(stringResource(R.string.settings_search_empty, searchQuery))
         }
-
+    }
 
     picking?.let { target ->
         ModalBottomSheet(
