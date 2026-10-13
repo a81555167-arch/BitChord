@@ -282,6 +282,37 @@ object SpotifyLibrary {
         }
     }
 
+    /** Move one item in a Spotify playlist to a new zero-based position. */
+    suspend fun reorderPlaylist(
+        playlistId: String,
+        rangeStart: Int,
+        insertBefore: Int,
+        rangeLength: Int = 1,
+    ) = withContext(Dispatchers.IO) {
+        require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
+        require(rangeStart >= 0 && insertBefore >= 0 && rangeLength > 0) { "Invalid Spotify playlist positions" }
+        val headers = authHeaders()
+        val body = buildJsonObject {
+            put("range_start", rangeStart)
+            put("insert_before", insertBefore)
+            put("range_length", rangeLength)
+        }.toString().toRequestBody(mediaType)
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId/tracks")
+            .apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                method("PUT", body)
+            }
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not reorder this playlist (" + response.code + "). The connected session may not allow playlist edits."
+                )
+            }
+        }
+    }
+
     /** Remove one track identity from a Spotify playlist. */
     suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) = withContext(Dispatchers.IO) {
         require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
