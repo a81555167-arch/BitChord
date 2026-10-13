@@ -199,6 +199,28 @@ object SpotifyLibrary {
         }
     }
 
+    /** Rename a Spotify playlist when the connected session permits playlist edits. */
+    suspend fun renamePlaylist(playlistId: String, title: String) = withContext(Dispatchers.IO) {
+        require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
+        require(title.isNotBlank()) { "Playlist name cannot be empty" }
+        val headers = authHeaders()
+        val body = buildJsonObject { put("name", title.trim()) }.toString().toRequestBody(mediaType)
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId")
+            .apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                method("PUT", body)
+            }
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not rename this playlist (" + response.code + "). The connected session may not allow playlist edits."
+                )
+            }
+        }
+    }
+
     /** Remove one track identity from a Spotify playlist. */
     suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) = withContext(Dispatchers.IO) {
         require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
