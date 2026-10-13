@@ -25,6 +25,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -2672,9 +2674,18 @@ private fun BitChordApp(
                         val libraryShowAllSwap = (initialState == "library_show_all" && targetState == libraryTabKey) ||
                             (targetState == "library_show_all" && initialState == libraryTabKey)
                         if (tabSwap || libraryShowAllSwap) {
-                            EnterTransition.None togetherWith ExitTransition.None
+                            // A small horizontal drift gives tab changes a clear,
+                            // lightweight motion without fading two transparent pages
+                            // through the window background.
+                            slideInHorizontally(
+                                animationSpec = tween(200),
+                                initialOffsetX = { width -> width / 24 },
+                            ) togetherWith slideOutHorizontally(
+                                animationSpec = tween(200),
+                                targetOffsetX = { width -> -width / 24 },
+                            )
                         } else {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                            fadeIn(tween(220)) togetherWith fadeOut(tween(180))
                         }
                     },
                     modifier = Modifier
