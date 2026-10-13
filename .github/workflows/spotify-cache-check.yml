@@ -50,5 +50,16 @@ jobs:
       - name: Compile production debug Kotlin
         run: ./gradlew :app:compileProdDebugKotlin --stacktrace
 
+      - name: Run shared JVM tests
+        run: ./gradlew :shared:jvmTest --stacktrace
+
       - name: Assemble production debug APK
         run: ./gradlew :app:assembleProdDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitchord-prod-debug-apk
+          path: app/build/outputs/apk/prod/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
