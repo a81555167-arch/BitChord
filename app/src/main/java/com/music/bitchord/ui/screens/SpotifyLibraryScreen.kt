@@ -93,6 +93,7 @@ fun SpotifyLibraryScreen(
 ) {
     val cookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     var showLogin by remember { mutableStateOf(false) }
+    var showSpotifyHome by remember(cookie) { mutableStateOf(cookie.isNotBlank()) }
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -103,13 +104,17 @@ val cacheAccountKey = remember(cookie) {
     cookie.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
 }
     
-LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
+LaunchedEffect(cookie, cacheAccountKey, refreshCounter, showSpotifyHome) {
     val accountKey = cacheAccountKey
 
     if (cookie.isBlank() || accountKey == null) {
         playlists = emptyList()
         loading = false
         error = null
+        return@LaunchedEffect
+    }
+    if (showSpotifyHome) {
+        loading = false
         return@LaunchedEffect
     }
 
@@ -169,6 +174,16 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         return
     }
 
+    if (cookie.isNotBlank() && showSpotifyHome) {
+        SpotifyHomeScreen(
+            sessionCookie = cookie,
+            modifier = modifier,
+            contentPadding = contentPadding,
+            onOpenLibrary = { showSpotifyHome = false },
+        )
+        return
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -191,6 +206,11 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(Modifier.weight(1f))
+                if (cookie.isNotBlank()) {
+                    TextButton(onClick = { showSpotifyHome = true }) {
+                        Text("Home")
+                    }
+                }
                 TextButton(
                     onClick = {
                         cacheAccountKey?.let { accountKey ->
@@ -248,6 +268,93 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
 }
 
 @Composable
+private fun SpotifyHomeScreen(
+    sessionCookie: String,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
+    onOpenLibrary: () -> Unit,
+) {
+    var rendererGeneration by remember { mutableIntStateOf(0) }
+    Column(modifier.fillMaxSize().padding(contentPadding)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+        ) {
+            Icon(
+                painter = painterResource(Res.drawable.spotify_logo),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(32.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "Spotify Home",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onOpenLibrary) { Text("Your Library") }
+        }
+        key(rendererGeneration) {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                factory = { context ->
+                    WebView(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.databaseEnabled = true
+                        // Prefer locally cached page resources to downloading them again.
+                        settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                        settings.mediaPlaybackRequiresUserGesture = true
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            settings.isAlgorithmicDarkeningAllowed = false
+                        } else if (Build.VERSION.SDK_INT >= 29) {
+                            @Suppress("DEPRECATION")
+                            settings.forceDark = WebSettings.FORCE_DARK_OFF
+                        }
+                        setBackgroundColor(0xFF121212.toInt())
+                        val cookies = CookieManager.getInstance()
+                        cookies.setAcceptCookie(true)
+                        cookies.setAcceptThirdPartyCookies(this, true)
+                        // Rehydrate the session cookie if the WebView cookie jar was cleared
+                        // while BitChord still has the linked account saved.
+                        cookies.setCookie(
+                            "https://open.spotify.com",
+                            "sp_dc=$sessionCookie; Domain=.spotify.com; Path=/; Secure; HttpOnly",
+                        ) {
+                            cookies.flush()
+                            loadUrl("https://open.spotify.com/")
+                        }
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView,
+                                request: WebResourceRequest,
+                            ): Boolean = !isLoginHost(request.url)
+
+                            override fun onRenderProcessGone(
+                                view: WebView,
+                                detail: RenderProcessGoneDetail,
+                            ): Boolean {
+                                rendererGeneration += 1
+                                return true
+                            }
+                        }
+                    }
+                },
+                onRelease = {
+                    it.stopLoading()
+                    it.destroy()
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun LibraryRow(
     title: String,
     subtitle: String,
@@ -297,7 +404,12 @@ private val SPOTIFY_COOKIE_URLS = listOf(
 )
 
 private val LOGIN_HOST_SUFFIXES = listOf(
-    "spotify.com", "scdn.co", "google.com", "gstatic.com", "facebook.com", "apple.com",
+    "spotify.com", "spotifycdn.com", "scdn.co",
+    "google.com", "gstatic.com", "recaptcha.net",
+    "facebook.com", "apple.com",
+    // Spotify can hand login verification to third-party CAPTCHA providers.
+    "arkoselabs.com", "funcaptcha.com", "hcaptcha.com",
+    "captcha-delivery.com", "cloudflare.com",
 )
 
 private fun hostMatches(uri: Uri?, suffixes: List<String>): Boolean {
