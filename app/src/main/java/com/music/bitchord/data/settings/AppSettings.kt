@@ -168,7 +168,7 @@ object AppSettings {
      * to assume.
      */
     val audioQualityWifi = MutableStateFlow(AudioQuality.LOSSLESS)
-    val audioQualityCellular = MutableStateFlow(AudioQuality.LOSSLESS)
+    val audioQualityCellular = MutableStateFlow(AudioQuality.MEDIUM)
 
     /** Allowed duration difference when replacing a playing stream with one from a source. */
     val upgradeLengthSlackSeconds = MutableStateFlow(DEFAULT_UPGRADE_LENGTH_SLACK_SECONDS)
@@ -968,16 +968,19 @@ object AppSettings {
      */
     private fun migrateSingleQuality() {
         val legacy = prefs.getString(KEY_QUALITY_LEGACY, null) ?: return
+        // Preserve the old global preference on Wi-Fi, but avoid carrying a
+        // lossless ceiling over to a metered connection during migration.
         prefs.edit()
             .putString(KEY_QUALITY_WIFI, legacy)
-            .putString(KEY_QUALITY_CELLULAR, legacy)
+            .putString(KEY_QUALITY_CELLULAR, AudioQuality.MEDIUM.name)
             .remove(KEY_QUALITY_LEGACY)
             .apply()
     }
 
     private fun readQuality(key: String): AudioQuality {
-        val stored = prefs.getString(key, null) ?: return AudioQuality.LOSSLESS
-        return runCatching { AudioQuality.valueOf(stored) }.getOrDefault(AudioQuality.LOSSLESS)
+        val fallback = if (key == KEY_QUALITY_CELLULAR) AudioQuality.MEDIUM else AudioQuality.LOSSLESS
+        val stored = prefs.getString(key, null) ?: return fallback
+        return runCatching { AudioQuality.valueOf(stored) }.getOrDefault(fallback)
     }
 
     /**

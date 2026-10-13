@@ -2676,14 +2676,14 @@ private fun BitChordApp(
                             // lightweight motion without fading two transparent pages
                             // through the window background.
                             slideInHorizontally(
-                                animationSpec = tween(200),
-                                initialOffsetX = { width -> width / 24 },
+                                animationSpec = tween(140),
+                                initialOffsetX = { width -> width / 32 },
                             ) togetherWith slideOutHorizontally(
-                                animationSpec = tween(200),
-                                targetOffsetX = { width -> -width / 24 },
+                                animationSpec = tween(140),
+                                targetOffsetX = { width -> -width / 32 },
                             )
                         } else {
-                            fadeIn(tween(220)) togetherWith fadeOut(tween(180))
+                            fadeIn(tween(160)) togetherWith fadeOut(tween(120))
                         }
                     },
                     modifier = Modifier
