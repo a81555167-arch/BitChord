@@ -24,12 +24,11 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK tools
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-37
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-37"
 
       - name: Create local properties
         run: |
@@ -40,4 +39,4 @@ jobs:
         run: chmod +x gradlew
 
       - name: Compile production debug Kotlin
-        run: ./gradlew :app:compileProdDebugKotlin
+        run: ./gradlew :app:compileProdDebugKotlin --stacktrace
