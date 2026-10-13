@@ -66,9 +66,6 @@ import com.music.bitchord.data.spotify.SpotifyTrack
 private const val LOGIN_URL =
     "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
 
-private const val LOGIN_USER_AGENT =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-
 private const val LOGIN_LAYOUT_FIX = """
     (function () {
       var id = 'bitchord-login-layout-fix';
@@ -128,6 +125,15 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         loading = false
         return@LaunchedEffect
     }
+    // A failed refresh should not be retried on every visit while mobile data
+    // is weak. Keep the cached library visible and retry after the short cooldown,
+    // unless the user explicitly requests Refresh.
+    if (!manualRefresh && cachedPlaylists != null &&
+        SpotifyLibraryCache.isFeedFailureCoolingDown(accountKey, "playlists")
+    ) {
+        loading = false
+        return@LaunchedEffect
+    }
 
     loading = true
 
@@ -136,11 +142,13 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         val freshPlaylists = SpotifyLibrary.playlists()
 
         SpotifyLibraryCache.savePlaylists(accountKey, freshPlaylists)
+        SpotifyLibraryCache.clearFeedFailure(accountKey, "playlists")
         playlists = freshPlaylists
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        // Keep cached playlists visible if refreshing fails.
+        SpotifyLibraryCache.markFeedFailure(accountKey, "playlists")
+        // Keep cached choices visible if Spotify is offline or the session expired.
         if (playlists.isEmpty()) {
             error = e.message ?: "Could not load Spotify library"
         }
@@ -345,7 +353,6 @@ private fun SpotifyLogin(
                 settings.domStorageEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
-                settings.userAgentString = LOGIN_USER_AGENT
                 if (Build.VERSION.SDK_INT >= 33) {
                     settings.isAlgorithmicDarkeningAllowed = false
                 } else if (Build.VERSION.SDK_INT >= 29) {
