@@ -141,6 +141,34 @@ object SpotifyLibrary {
     }
 
     /** Add a catalogue track to a Spotify playlist using the session's available Web API scopes. */
+    /** Resolve a BitChord song to Spotify's catalogue when needed, then save it to Liked Songs. */
+    suspend fun setLikedTrack(
+        spotifyTrackId: String?,
+        title: String,
+        artist: String,
+        liked: Boolean,
+    ) = withContext(Dispatchers.IO) {
+        val headers = authHeaders()
+        val trackId = spotifyTrackId?.takeIf { it.matches(Regex("[A-Za-z0-9]{22}")) }
+            ?: searchTrackId(title, artist, headers)
+            ?: throw IllegalStateException("Could not find this song in Spotify's catalogue")
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/me/tracks?ids=$trackId")
+            .apply {
+                headers.forEach { (name, value) -> header(name, value) }
+                if (liked) put(ByteArray(0).toRequestBody(mediaType))
+                else delete(ByteArray(0).toRequestBody(mediaType))
+            }
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not update Liked Songs (" + response.code + "). The connected session may not allow library edits."
+                )
+            }
+        }
+    }
+
     suspend fun addTrackToPlaylist(
         playlistId: String,
         spotifyTrackId: String?,
