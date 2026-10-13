@@ -3265,7 +3265,7 @@ fun NowPlayingScreen(
                     }
                     if (onAddToSpotify != null && song.localUri == null) {
                         CircleGlyph(
-                            icon = Icons.Rounded.Star,
+                            icon = BitChordIcons.Star,
                             contentDescription = "Add to Spotify Liked Songs or choose a playlist",
                             onClick = onAddToSpotify,
                         )
