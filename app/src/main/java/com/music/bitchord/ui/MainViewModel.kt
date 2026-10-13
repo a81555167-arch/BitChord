@@ -1404,6 +1404,55 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reordered: List<Song>,
         onResult: (Boolean) -> Unit = {},
     ) {
+        if (playlist.playlistId.startsWith("spotify:")) {
+            val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
+            if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) return onResult(false)
+            val originalIds = original.mapNotNull { it.spotifyTrackId }
+            val targetIds = reordered.mapNotNull { it.spotifyTrackId }
+            if (originalIds.size != targetIds.size || targetIds.isEmpty()) return onResult(false)
+            viewModelScope.launch {
+                runCatching {
+                    val working = originalIds.toMutableList()
+                    targetIds.forEachIndexed { targetIndex, targetId ->
+                        val fromIndex = (targetIndex until working.size)
+                            .firstOrNull { working[it] == targetId }
+                            ?: throw IllegalStateException("Spotify playlist order changed; refresh and try again")
+                        if (fromIndex != targetIndex) {
+                            SpotifyLibrary.reorderPlaylist(spotifyPlaylistId, fromIndex, targetIndex)
+                            working.add(targetIndex, working.removeAt(fromIndex))
+                        }
+                    }
+                }.onSuccess {
+                    val accountKey = AppSettings.spotifySpdcToken.value
+                        .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                    if (accountKey != null) SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
+                    val browseId = SPOTIFY_PAGE_PREFIX + spotifyPlaylistId
+                    _detailStack.value = _detailStack.value.map { page ->
+                        if (page.browseId != browseId) page
+                        else {
+                            val current = (page.songs as? UiState.Success<List<Song>>)?.data
+                            if (current == null) page else {
+                                val buckets = current.groupBy { it.spotifyTrackId }
+                                    .mapValues { (_, songs) -> songs.toMutableList() }
+                                val arranged = targetIds.mapNotNull { id ->
+                                    buckets[id]?.removeAt(0)
+                                } + current.filter { it.spotifyTrackId == null }
+                                page.copy(songs = UiState.Success(arranged))
+                            }
+                        }
+                    }
+                    onResult(true)
+                }.onFailure { failure ->
+                    Toast.makeText(
+                        getApplication(),
+                        failure.message ?: "Spotify could not reorder this playlist",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    onResult(false)
+                }
+            }
+            return
+        }
         if (!requireSignIn()) return onResult(false)
         viewModelScope.launch {
             YtMusicRepository.reorderPlaylist(
