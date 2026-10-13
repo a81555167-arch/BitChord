@@ -1044,15 +1044,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             }.fold(
-                onSuccess = {
+                onSuccess = { addedSpotifyTrackId ->
                     if (accountKey != null) {
                         SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
                     }
-                    song.spotifyTrackId?.let { trackId ->
-                        if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
-                            _spotifyLikedTrackIds.update { it + trackId }
-                        }
+                    if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                        _spotifyLikedTrackIds.update { it + addedSpotifyTrackId }
                     }
+                    // If the destination playlist is open behind the picker, keep
+                    // its visible rows aligned with the successful Spotify write.
+                    appendToOpenPlaylist(
+                        SPOTIFY_PAGE_PREFIX + spotifyPlaylistId,
+                        song.copy(spotifyTrackId = addedSpotifyTrackId),
+                        setVideoId = null,
+                    )
                     AddOutcome.ADDED
                 },
                 onFailure = { AddOutcome.FAILED },
@@ -1322,7 +1327,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Already there — a track added twice is two real entries on
             // YouTube's side, but a duplicate row from a double tap is not
             // something the user asked for.
-            if (songs.any { it.videoId == song.videoId }) return@map page
+            if (songs.any {
+                    it.videoId == song.videoId ||
+                        (song.spotifyTrackId != null && it.spotifyTrackId == song.spotifyTrackId)
+                }) return@map page
             page.copy(
                 songs = UiState.Success(
                     songs + added.copy(
