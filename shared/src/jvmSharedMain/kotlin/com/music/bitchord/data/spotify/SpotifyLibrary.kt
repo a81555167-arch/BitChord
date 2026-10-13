@@ -418,6 +418,9 @@ object SpotifyLibrary {
         return parseLikedPage(gql("fetchLibraryTracks", LIKED, variables, headers))
     }
 
+    /** Authenticated headers for the separate Spotify Home/Explore feed client. */
+    internal suspend fun discoveryHeaders(): Map<String, String> = authHeaders()
+
     private suspend fun authHeaders(): Map<String, String> {
         val tokens = auth?.tokens()
             ?: throw IllegalStateException("Spotify sign-in expired")
