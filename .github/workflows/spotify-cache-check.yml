@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: spotify-cache-branch-build
+  cancel-in-progress: true
+
 jobs:
   android-build:
     runs-on: ubuntu-latest
