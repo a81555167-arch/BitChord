@@ -907,14 +907,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _playlistsLoading = MutableStateFlow(false)
     val playlistsLoading: StateFlow<Boolean> = _playlistsLoading.asStateFlow()
+    private var playlistsLoadedIdentity: String? = null
 
-    /** Re-fetched rather than cached for the session: playlists are edited here. */
-    fun loadPlaylists() {
+    /** Refresh on demand, but reuse the session's result when merely returning to Library. */
+    fun loadPlaylists(force: Boolean = true) {
         if (!_signedIn.value || _playlistsLoading.value) return
         val identity = listenerKey()
+        if (!force && playlistsLoadedIdentity == identity) return
         _playlistsLoading.value = true
         viewModelScope.launch {
-            YtMusicRepository.userPlaylists().onSuccess { if (identity == listenerKey()) _playlists.value = it }
+            YtMusicRepository.userPlaylists().onSuccess {
+                if (identity == listenerKey()) {
+                    _playlists.value = it
+                    playlistsLoadedIdentity = identity
+                }
+            }
             if (identity == listenerKey()) _playlistsLoading.value = false
         }
     }
@@ -1640,7 +1647,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Call when the library tab becomes visible. */
     fun onLibraryShown() {
-        loadPlaylists()
+        loadPlaylists(force = false)
         if (!libraryStale) return
         libraryStale = false
         if (_library.value is UiState.Success) refresh(Feed.LIBRARY)
