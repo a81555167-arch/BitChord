@@ -820,7 +820,6 @@ private fun BitChordApp(
     var songSortMenuOpen by remember { mutableStateOf(false) }
     val likeStatuses by viewModel.likeStatuses.collectAsStateWithLifecycle()
     val spotifyLikedIds by viewModel.spotifyLikedTrackIds.collectAsStateWithLifecycle()
-    var spotifyStarredSongKey by remember(spotifyCookie) { mutableStateOf<String?>(null) }
     // Which tracks are being held on YouTube's own upload, so the player's menu
     // offers the way back out of a revert rather than the revert again.
     val pinnedToOriginal by OriginalVersion.pinned.collectAsStateWithLifecycle()
@@ -2329,38 +2328,6 @@ private fun BitChordApp(
             onToggleLike = {
                 song.spotifyTrackId?.let { viewModel.toggleSpotifyLike(it, song) } ?: viewModel.toggleLike(song.videoId)
             },
-            onAddToSpotify = if (spotifyCookie.isNotBlank()) ({
-                val alreadyLiked = song.spotifyTrackId?.let { it in spotifyLikedIds } == true
-                if (alreadyLiked || spotifyStarredSongKey == song.videoId) {
-                    viewModel.loadPlaylists()
-                    playlistTarget = song
-                } else {
-                    viewModel.addToPlaylists(
-                        playlists = listOf(
-                            com.music.bitchord.data.model.UserPlaylist(
-                                playlistId = "spotify:${SpotifyLibrary.LIKED_ID}",
-                                title = "Liked Songs",
-                                subtitle = "Spotify",
-                                thumbnailUrl = null,
-                            ),
-                        ),
-                        song = song,
-                    ) { added, alreadyThere, failed ->
-                        if (added > 0 || alreadyThere > 0) {
-                            spotifyStarredSongKey = song.videoId
-                            showQueueNotice(
-                                if (alreadyThere > 0 && added == 0) {
-                                    context.getString(R.string.song_already_in_playlist)
-                                } else {
-                                    context.getString(R.string.song_added_to_playlist)
-                                },
-                            )
-                        } else if (failed > 0) {
-                            showQueueNotice(context.getString(R.string.failed))
-                        }
-                    }
-                }
-            }) else null,
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
             // before its asynchronous reorder command has actually landed.
