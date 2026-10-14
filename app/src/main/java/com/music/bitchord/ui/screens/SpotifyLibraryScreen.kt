@@ -371,12 +371,14 @@ private fun SpotifyLogin(
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webViewClient = object : WebViewClient() {
-                    // Spotify's own pages and the identity providers its sign-in
-                    // hands off to; anything else is not part of logging in.
+                    // Keep HTTPS redirects inside the login WebView. Spotify's
+                    // sign-in flow can use new verification hosts, so a fixed host
+                    // allowlist can interrupt authentication and leave this page blank.
+                    // Block only insecure navigation.
                     override fun shouldOverrideUrlLoading(
                         view: WebView,
                         request: WebResourceRequest,
-                    ): Boolean = !isLoginHost(request.url)
+                    ): Boolean = request.url.scheme != "https"
 
                     override fun onRenderProcessGone(
                         view: WebView,
