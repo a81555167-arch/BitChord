@@ -1053,9 +1053,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val accountKey = AppSettings.spotifySpdcToken.value
                 .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
 
-            // Mirror the selected destination into its local/imported copy first.
-            // Spotify sync is best-effort: an expired session, denied endpoint or
-            // offline connection must never make the user's tap lose the song.
+            // A local copy is a fallback, not a shadow of every successful Spotify
+            // edit. Find an imported/local counterpart by title, but do not create
+            // it unless Spotify actually refuses the write.
             val localStore = com.music.bitchord.data.spotify.LocalPlaylistStore
             val localCopy = localStore.playlists.value.firstOrNull {
                 it.title.equals(playlist.title, ignoreCase = true)
@@ -1066,7 +1066,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     (current.title.equals(song.title, ignoreCase = true) &&
                         current.artist.equals(song.artist, ignoreCase = true))
             } == true
-            localStore.addSongToPlaylist(playlist.title, song)
 
             // A stale cache must not veto a real add: a track may have been
             // removed in Spotify since these rows were cached. Only use the
@@ -1079,7 +1078,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         (track.title.equals(song.title, ignoreCase = true) &&
                             track.artist.equals(song.artist, ignoreCase = true))
                 } == true
-            ) return if (alreadyLocal) AddOutcome.ALREADY_THERE else AddOutcome.ADDED
+            ) return AddOutcome.ALREADY_THERE
 
             return runCatching {
                 if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
@@ -1110,6 +1109,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     AddOutcome.ADDED
                 },
                 onFailure = {
+                    // Spotify may be offline or reject the session mutation. In
+                    // that case only, keep the track in the matching imported
+                    // local playlist (or create a local fallback if none exists).
+                    localStore.addSongToPlaylist(playlist.title, song)
                     if (alreadyLocal) AddOutcome.ALREADY_THERE else AddOutcome.ADDED
                 },
             )
