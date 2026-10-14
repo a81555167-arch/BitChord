@@ -301,7 +301,6 @@ fun SearchScreen(
                             TopResultCard(
                                 song = topResult.song,
                                 onPlay = { onTopResultPlay(topResult.song) },
-                                onPlaylist = { onTopResultPlaylist(topResult.song) },
                                 onLongPress = { onSongLongPress(topResult.song) },
                             )
                         }
@@ -348,15 +347,7 @@ fun SearchScreen(
                                         searchPlayingStyle = true,
                                         activeTint = MaterialTheme.colorScheme.primary,
                                     )
-                                    onTrackPlaylist?.let { addToPlaylist ->
-                                        IconButton(onClick = { addToPlaylist(row.song) }) {
-                                            Icon(
-                                                Icons.AutoMirrored.Rounded.PlaylistAdd,
-                                                contentDescription = stringResource(Res.string.playlist_action),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
+
                                 }
                                 is SearchResult.Browse -> BrowseRow(
                                     item = row.item,
@@ -654,7 +645,6 @@ private fun LazyListScope.searchTypeaheadDropdown(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
-                onPlaylist = onSongPlaylist?.let { { it(result.song) } },
                 isCurrent = result.song.isSameTrackAs(currentSong),
                 isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
             )
@@ -684,7 +674,6 @@ private fun TypeaheadSongRow(
     song: Song,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)? = null,
-    onPlaylist: (() -> Unit)? = null,
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
 ) {
@@ -725,15 +714,6 @@ private fun TypeaheadSongRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        onPlaylist?.let { addToPlaylist ->
-            IconButton(onClick = addToPlaylist) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.PlaylistAdd,
-                    contentDescription = stringResource(Res.string.playlist_action),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
