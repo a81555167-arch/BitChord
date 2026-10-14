@@ -695,8 +695,11 @@ object SourceResolver {
      * [AudioCache][com.music.bitchord.playback.AudioCache] decide how to treat
      * a YouTube id before anyone has asked a source for it.
      */
-    fun canSubstituteForYouTube(): Boolean =
-        SourceRegistry.activeForPlayback().indexOfFirst { it.kind == SourceKind.YOUTUBE } > 0
+    fun canSubstituteForYouTube(): Boolean {
+        val quality = AppSettings.effectiveAudioQuality
+        val eligible = SourceRegistry.activeForPlayback().filter { quality.permits(it.kind) }
+        return eligible.indexOfFirst { it.kind == SourceKind.YOUTUBE } > 0
+    }
 
     /**
      * The sources ranked above [configId], in order.
