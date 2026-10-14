@@ -3456,17 +3456,6 @@ fun NowPlayingScreen(
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-            // Lyrics are shown in the dedicated lyrics panel, not as a duplicate one-line preview.
-            if (lyricsOpen) {
-                LyricsStatusWithChange(
-                    status = lyricsTranslation.status,
-                    onStatusClick = { showLyricsProviders = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = 6.dp)
-                        .padding(vertical = 4.dp),
-                )
-            }
             val transitionWindow by PlayerSettings.smartTransitionWindow.collectAsStateWithLifecycle()
             PlayerScrubber(
                 shown = shown,
