@@ -110,6 +110,25 @@ object LocalPlaylistStore {
         return playlist
     }
 
+    /** Adds a track to an existing imported/local playlist by its stable id. Returns null if missing, false if already present, true if added. */
+    fun addSongToLocalPlaylist(id: String, song: Song): Boolean? {
+        val cleanId = id.removePrefix("local:playlist:")
+        val existing = _playlists.value.firstOrNull { it.id == cleanId || it.browseId == id }
+            ?: return null
+        val alreadyPresent = existing.songs.any { current ->
+            (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
+                (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
+                (current.title.equals(song.title, ignoreCase = true) &&
+                    current.artist.equals(song.artist, ignoreCase = true))
+        }
+        if (alreadyPresent) return false
+        val updatedPlaylist = existing.copy(songs = existing.songs + song)
+        val updated = _playlists.value.map { if (it.id == existing.id) updatedPlaylist else it }
+        _playlists.value = updated
+        persist(updated)
+        return true
+    }
+
     fun deletePlaylist(id: String) {
         val updated = _playlists.value.filterNot { it.id == id || it.browseId == id || it.id == id.removePrefix("local:playlist:") }
         _playlists.value = updated
