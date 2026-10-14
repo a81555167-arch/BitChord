@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import com.music.bitchord.BuildConfig
 import com.music.bitchord.auth.AuthStore
 import com.music.bitchord.data.canvas.SpotifyToken
+import com.music.bitchord.data.innertube.StreamResolver
 import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.playback.EqLayout
@@ -761,6 +762,9 @@ object AppSettings {
         this.authStore = authStore
         com.music.bitchord.data.spotify.LocalPlaylistStore.init(context)
         readAll()
+        // Keep the stream extractor tied to the live per-network quality ceiling.
+        // Without this bridge its fallback selector defaults to an unlimited rung.
+        StreamResolver.maxKbps = { effectiveAudioQuality.maxKbps }
         watchConnection(context)
     }
 
