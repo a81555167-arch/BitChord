@@ -735,10 +735,13 @@ object AppSettings {
 
     /** The ceiling that applies to a stream started right now. */
     val effectiveAudioQuality: AudioQuality
-        get() = if (meteredConnection.value == true) {
-            audioQualityCellular.value
-        } else {
+        get() = if (meteredConnection.value == false) {
             audioQualityWifi.value
+        } else {
+            // Unknown is not proof of an unmetered network. During startup or
+            // a network hand-off, keep the mobile-data ceiling until Android
+            // explicitly reports an unmetered connection.
+            audioQualityCellular.value
         }
 
     /**
