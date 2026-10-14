@@ -28,6 +28,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.Base64
+import java.security.MessageDigest
 
 /**
  * The bearer token behind Spotify's own web player, minted from the
@@ -52,6 +53,7 @@ internal object SpotifyToken {
     @Volatile private var appContext: Context? = null
 
     @Volatile private var cachedAccessToken: String? = null
+    @Volatile private var cachedCookieFingerprint: String? = null
     @Volatile private var accessTokenExpiresAtMs = 0L
     @Volatile private var cachedClientId: String? = null
 
@@ -68,10 +70,31 @@ internal object SpotifyToken {
 
     fun invalidate() {
         cachedAccessToken = null
+        cachedCookieFingerprint = null
         accessTokenExpiresAtMs = 0L
         cachedClientId = null
         cachedClientToken = null
         clientTokenExpiresAtMs = 0L
+    }
+
+    private fun fingerprint(cookie: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(cookie.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+
+    @Synchronized
+    private fun ensureCookieIdentity(cookie: String) {
+        val fingerprint = fingerprint(cookie)
+        if (cachedCookieFingerprint != fingerprint) {
+            // A bearer minted for a previous Spotify account must never be
+            // reused after disconnecting or signing in with another account.
+            cachedAccessToken = null
+            accessTokenExpiresAtMs = 0L
+            cachedClientId = null
+            cachedClientToken = null
+            clientTokenExpiresAtMs = 0L
+            cachedCookieFingerprint = fingerprint
+        }
     }
 
     /**
@@ -87,7 +110,11 @@ internal object SpotifyToken {
      */
     suspend fun accessToken(): String? {
         val cookie = AppSettings.spotifySpdcToken.value
-        if (cookie.isBlank()) return null
+        if (cookie.isBlank()) {
+            invalidate()
+            return null
+        }
+        ensureCookieIdentity(cookie)
 
         val now = System.currentTimeMillis()
         cachedAccessToken?.let { if (now < accessTokenExpiresAtMs - 30_000) return it }
@@ -103,12 +130,20 @@ internal object SpotifyToken {
             }
 
             val harvested = withContext(Dispatchers.Main) { harvestViaWebView(context, cookie) }
+            // The user may have switched accounts while the WebView was
+            // minting. Never install that result under the newly selected cookie.
+            if (AppSettings.spotifySpdcToken.value != cookie) {
+                invalidate()
+                return@withLock null
+            }
             if (harvested == null) {
                 Log.w(TAG, "token harvest failed or timed out")
                 return@withLock null
             }
 
+            ensureCookieIdentity(cookie)
             cachedAccessToken = harvested.token
+            cachedCookieFingerprint = fingerprint(cookie)
             accessTokenExpiresAtMs = harvested.expiresAt
             harvested.clientId?.let { cachedClientId = it }
             Log.d(TAG, "harvested access token, good until ${java.util.Date(harvested.expiresAt)}")
