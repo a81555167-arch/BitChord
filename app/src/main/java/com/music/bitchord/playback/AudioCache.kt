@@ -958,7 +958,10 @@ object AudioCache {
                 // leaves nothing pinned, and this falls through to the same
                 // URL-only warm-up it did before — YouTube resolves the track at
                 // playback time as usual.
-                val warmed = if (substitutable && target != null && !pinnedToYouTube) {
+                // Don't issue speculative catalogue/source lookups on a metered
+                // connection. The actual track will resolve when playback reaches it.
+                val metered = isMeteredConnection()
+                val warmed = if (!metered && substitutable && target != null && !pinnedToYouTube) {
                     runCatching { SourceResolver.prefetchSubstitute(target) }
                         .onFailure { TrackLog.d(TAG, "warm-up substitute failed for $next: ${it.message}", about = next) }
                         .getOrNull()
@@ -973,16 +976,22 @@ object AudioCache {
                 // Never download speculative audio on a metered connection.
                 // Playback still caches the bytes the listener actually hears;
                 // the full-track prefetch waits for unmetered Wi-Fi.
-                if (cacheBytes && !isMeteredConnection()) {
+                if (cacheBytes && !metered) {
                     launch(TrackLog.about(next)) {
                         delay(PREFETCH_DELAY_MS)
+                        if (isMeteredConnection()) return@launch
                         fetch(next, 0, PRELOAD_BYTES)
-                        fetchWhole(next)
+                        if (!isMeteredConnection()) fetchWhole(next)
                     }
                 }
+                // URL resolution is network work too: it may walk several
+                // player clients and scrape a watch page. Skip that hidden
+                // background traffic on cellular, not only the audio bytes.
+                if (metered || isMeteredConnection()) return@launch
                 launch {
                     delay(PREFETCH_DELAY_MS)
                     for (id in videoIds.take(QUEUE_LOOKAHEAD + 1).let { if (cacheBytes) it.drop(1) else it }) {
+                        if (isMeteredConnection()) break
                         // A track already pinned to another source has no use
                         // for a YouTube URL: nothing will ask for one, and
                         // minting it spends a client walk to fill a cache entry
@@ -1029,6 +1038,7 @@ object AudioCache {
      * it. A few spaced retries cover the hand-over, and then it is left alone.
      */
     private suspend fun fetchWhole(videoId: String) {
+        if (isMeteredConnection()) return
         repeat(MAX_ATTEMPTS) {
             // The race this retry loop exists to cover is the *queue's own*:
             // cancelling [job] tells a blocking network read to stop, but that
@@ -1058,6 +1068,7 @@ object AudioCache {
 
         var position = 0L
         while (position < total) {
+            if (isMeteredConnection()) return false
             // Checked per chunk, not just once per pass: a track long enough
             // to need several chunks can lose the race partway through one,
             // and a queue change mid-pass is exactly the "the player has it
