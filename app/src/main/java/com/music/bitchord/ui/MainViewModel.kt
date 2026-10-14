@@ -1134,7 +1134,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 com.music.bitchord.data.spotify.LocalPlaylistStore
                     .addSongToLocalPlaylist(playlist.playlistId, song)
             ) {
-                true -> AddOutcome.ADDED
+                true -> {
+                    // Persisting the local store is not enough when its page is
+                    // already open behind the picker: update that page immediately.
+                    val updated = com.music.bitchord.data.spotify.LocalPlaylistStore
+                        .getPlaylist(playlist.playlistId)
+                    if (updated != null) {
+                        _detailStack.value = _detailStack.value.map { page ->
+                            if (page.browseId == playlist.browseId ||
+                                page.browseId == playlist.playlistId ||
+                                page.browseId == updated.browseId
+                            ) page.copy(songs = UiState.Success(updated.songs)) else page
+                        }
+                    }
+                    AddOutcome.ADDED
+                }
                 false -> AddOutcome.ALREADY_THERE
                 null -> AddOutcome.FAILED
             }
