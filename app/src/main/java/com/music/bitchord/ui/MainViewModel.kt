@@ -1173,41 +1173,96 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 } == true
             ) return AddOutcome.ALREADY_THERE
 
-            return runCatching {
-                if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
-                    SpotifyLibrary.setLikedTrack(song.spotifyTrackId, song.title, song.artist, liked = true)
+            val cachedTracksBeforeWrite = accountKey?.let {
+                SpotifyLibraryCache.getTracks(it, spotifyPlaylistId)
+            }
+            val cacheWasFresh = accountKey?.let {
+                SpotifyLibraryCache.areTracksFresh(it, spotifyPlaylistId)
+            } == true
+            var optimisticCacheUpdated = false
+
+            return try {
+                // Resolve the Spotify catalogue ID before touching either cache or
+                // account. From this point onward, the heart's Save action and the
+                // player's Add to playlist action use the same track identity.
+                val resolvedTrackId = SpotifyLibrary.resolveTrackId(
+                    song.spotifyTrackId,
+                    song.title,
+                    song.artist,
+                )
+
+                // Imported Spotify playlists are displayed from this local cache.
+                // Update a known-complete cache first, then commit the same edit to
+                // Spotify. If the remote write fails, restore the previous cache.
+                if (accountKey != null && cacheWasFresh && cachedTracksBeforeWrite != null) {
+                    val resolvedTrack = SpotifyTrack(
+                        id = resolvedTrackId,
+                        title = song.title,
+                        artist = song.artist,
+                        album = song.albumName,
+                        durationMs = 0,
+                        imageUrl = song.thumbnailUrl,
+                    )
+                    val optimisticTracks = cachedTracksBeforeWrite.filterNot { it.id == resolvedTrackId }
+                    val updatedTracks = if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                        listOf(resolvedTrack) + optimisticTracks
+                    } else {
+                        optimisticTracks + resolvedTrack
+                    }
+                    SpotifyLibraryCache.saveTracks(accountKey, spotifyPlaylistId, updatedTracks)
+                    optimisticCacheUpdated = true
+                }
+
+                val addedSpotifyTrackId = if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                    SpotifyLibrary.setLikedTrack(
+                        resolvedTrackId,
+                        song.title,
+                        song.artist,
+                        liked = true,
+                    )
                 } else {
                     SpotifyLibrary.addTrackToPlaylist(
                         playlistId = spotifyPlaylistId,
-                        spotifyTrackId = song.spotifyTrackId,
+                        spotifyTrackId = resolvedTrackId,
                         title = song.title,
                         artist = song.artist,
                     )
                 }
-            }.fold(
-                onSuccess = { addedSpotifyTrackId ->
-                    if (accountKey != null) {
+
+                if (accountKey != null && !optimisticCacheUpdated) {
+                    // The cache was absent or incomplete, so don't pretend it is a
+                    // complete page. Force a fresh read after the successful write.
+                    SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
+                }
+                if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
+                    _spotifyLikedTrackIds.update { it + addedSpotifyTrackId }
+                }
+                appendToOpenPlaylist(
+                    SPOTIFY_PAGE_PREFIX + spotifyPlaylistId,
+                    song.copy(spotifyTrackId = addedSpotifyTrackId),
+                    setVideoId = null,
+                )
+                AddOutcome.ADDED
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                if (accountKey != null) {
+                    if (optimisticCacheUpdated && cachedTracksBeforeWrite != null) {
+                        SpotifyLibraryCache.saveTracks(
+                            accountKey,
+                            spotifyPlaylistId,
+                            cachedTracksBeforeWrite,
+                        )
+                    } else {
                         SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
                     }
-                    if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
-                        _spotifyLikedTrackIds.update { it + addedSpotifyTrackId }
-                    }
-                    // If the destination playlist is open behind the picker, keep
-                    // its visible rows aligned with the successful Spotify write.
-                    appendToOpenPlaylist(
-                        SPOTIFY_PAGE_PREFIX + spotifyPlaylistId,
-                        song.copy(spotifyTrackId = addedSpotifyTrackId),
-                        setVideoId = null,
-                    )
-                    AddOutcome.ADDED
-                },
-                onFailure = {
-                    // A Spotify playlist edit must never silently create or modify
-                    // a device-only playlist with the same title. Report the failure
-                    // instead, leaving the user's selected destination unambiguous.
-                    AddOutcome.FAILED
-                },
-            )
+                }
+                android.util.Log.w(
+                    "SpotifySync",
+                    "Failed to add track to Spotify playlist $spotifyPlaylistId: ${failure.message}",
+                    failure,
+                )
+                AddOutcome.FAILED
+            }
         }
         val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
             ?.songs as? UiState.Success)?.data
