@@ -2385,7 +2385,8 @@ private fun BitChordApp(
                 if (playlistMembershipSongKey == (song.spotifyTrackId ?: song.videoId)) {
                     playlistMembershipIds.isNotEmpty()
                 } else {
-                    cachedPlayerMembershipIds.isNotEmpty()
+                    cachedPlayerMembershipIds.isNotEmpty() ||
+                        (song.spotifyTrackId != null && song.spotifyTrackId in spotifyLikedIds)
                 }
             ) LikeStatus.LIKE else LikeStatus.INDIFFERENT,
             onToggleLike = {
