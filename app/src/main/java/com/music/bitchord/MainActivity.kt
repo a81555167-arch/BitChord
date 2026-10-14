@@ -2322,13 +2322,25 @@ private fun BitChordApp(
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
-            // This is BitChord's Liked Music action, regardless of where the
-            // track was imported from. Spotify's Web Player session may not have
-            // the library-modify scope required by its separate REST endpoint;
-            // using YouTube's supported rating path keeps this control reliable.
-            likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
+            // Keep the active library authoritative: Spotify-imported tracks
+            // must read and write Spotify Liked Songs, while ordinary YouTube
+            // tracks use the signed-in YouTube Music library.
+            likeStatus = if (song.spotifyTrackId != null) {
+                if (song.spotifyTrackId in spotifyLikedIds) LikeStatus.LIKE
+                else LikeStatus.INDIFFERENT
+            } else {
+                likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT
+            },
             onToggleLike = {
-                if (likeStatuses[song.videoId] == LikeStatus.LIKE) {
+                val spotifyTrackId = song.spotifyTrackId
+                if (spotifyTrackId != null) {
+                    if (spotifyTrackId in spotifyLikedIds) {
+                        viewModel.loadPlaylists()
+                        playlistTarget = song
+                    } else {
+                        viewModel.toggleSpotifyLike(spotifyTrackId, song)
+                    }
+                } else if (likeStatuses[song.videoId] == LikeStatus.LIKE) {
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 } else {
