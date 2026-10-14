@@ -1345,22 +1345,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (browseId.startsWith(SPOTIFY_PAGE_PREFIX)) {
             val spotifyPlaylistId = browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
-            val spotifyTrackId = song.spotifyTrackId ?: return
             viewModelScope.launch {
                 runCatching {
+                    val spotifyTrackId = song.spotifyTrackId ?: run {
+                        // Search results may not carry Spotify's id even when
+                        // they were matched into a playlist. Resolve by title
+                        // and artist rather than silently ignoring the removal.
+                        SpotifyLibrary.tracks(spotifyPlaylistId)
+                            .firstOrNull {
+                                it.title.equals(song.title, ignoreCase = true) &&
+                                    it.artist.equals(song.artist, ignoreCase = true)
+                            }?.id
+                            ?: throw IllegalStateException("Could not find this song in the Spotify playlist")
+                    }
                     if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
                         SpotifyLibrary.setLikedTrack(spotifyTrackId, title = song.title, artist = song.artist, liked = false)
                     } else {
                         SpotifyLibrary.removeTrackFromPlaylist(spotifyPlaylistId, spotifyTrackId)
                     }
-                }.onSuccess {
+                    spotifyTrackId
+                }.onSuccess { spotifyTrackId ->
                     if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
                         _spotifyLikedTrackIds.update { it - spotifyTrackId }
                     }
                     _detailStack.value = _detailStack.value.map { page ->
                         val songs = (page.songs as? UiState.Success<List<Song>>)?.data
                         if (page.browseId != browseId || songs == null) page
-                        else page.copy(songs = UiState.Success(songs.filterNot { it.spotifyTrackId == spotifyTrackId }))
+                        else page.copy(
+                            songs = UiState.Success(
+                                songs.filterNot {
+                                    it.spotifyTrackId == spotifyTrackId ||
+                                        (it.title.equals(song.title, ignoreCase = true) &&
+                                            it.artist.equals(song.artist, ignoreCase = true))
+                                },
+                            ),
+                        )
                     }
                     val accountKey = AppSettings.spotifySpdcToken.value
                         .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
