@@ -209,11 +209,6 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter, showSpotifyHome) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(Modifier.weight(1f))
-                if (cookie.isNotBlank()) {
-                    TextButton(onClick = { showSpotifyHome = true }) {
-                        Text("Home")
-                    }
-                }
                 TextButton(
                     onClick = {
                         cacheAccountKey?.let { accountKey ->
