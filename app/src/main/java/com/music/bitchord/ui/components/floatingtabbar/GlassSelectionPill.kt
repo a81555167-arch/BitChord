@@ -355,13 +355,14 @@ internal class GlassPillMotion(
     }
 
     private companion object {
-        const val TRAVEL_STIFFNESS = 280.0
-        const val TRAVEL_DAMPING = 31.4
+        // Critically damped travel and lift settle promptly without the
+        // visible rebound that made tab changes look like a dropped frame.
+        const val TRAVEL_STIFFNESS = 320.0
+        const val TRAVEL_DAMPING = 35.8
 
-        /** Damping ratio 0.6 across, 0.7 down, so width overshoots a shade further. */
-        const val LIFT_STIFFNESS = 250.0
-        const val LIFT_DAMPING_X = 19.0
-        const val LIFT_DAMPING_Y = 22.1
+        const val LIFT_STIFFNESS = 320.0
+        const val LIFT_DAMPING_X = 35.8
+        const val LIFT_DAMPING_Y = 35.8
 
         /** Critically damped and four times as stiff: the glass is on long before the size settles. */
         const val MATERIAL_STIFFNESS = 1000.0
