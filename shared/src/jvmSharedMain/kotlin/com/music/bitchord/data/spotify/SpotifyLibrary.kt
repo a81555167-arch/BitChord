@@ -59,6 +59,10 @@ object SpotifyLibrary {
     private const val GQL = "https://api-partner.spotify.com/pathfinder/v2/query"
     private const val LIBRARY = "973e511ca44261fda7eebac8b653155e7caee3675abb4fb110cc1b8c78b091c3"
     private const val PLAYLIST = "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763"
+    // Spotify's Web Player mutations. Unlike api.spotify.com REST endpoints,
+    // these use the same session bearer that our embedded Web Player login yields.
+    private const val ADD_TO_PLAYLIST = "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"
+    private const val ADD_TO_LIBRARY = "7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d"
     /** The pseudo-playlist id for the Liked Songs collection, which has no playlist uri. */
     const val LIKED_ID = "liked"
     /** Spotify's own Liked Songs artwork, the purple heart; the collection has no cover of its own. */
@@ -181,27 +185,17 @@ object SpotifyLibrary {
      * scope; in that case this throws a useful error instead of pretending the
      * heart synced successfully.
      */
+    /** Save/remove a track in Spotify's Liked Songs using the Web Player mutation. */
     suspend fun setLiked(trackId: String, liked: Boolean) = withContext(Dispatchers.IO) {
         require(trackId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify track id" }
         val headers = authHeaders()
-        val request = Request.Builder()
-            .url("https://api.spotify.com/v1/me/tracks?ids=$trackId")
-            .apply {
-                headers.forEach { (name, value) -> header(name, value) }
-                if (liked) put(ByteArray(0).toRequestBody(mediaType))
-                else delete(ByteArray(0).toRequestBody(mediaType))
-            }
-            .build()
-        Http.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException(
-                    "Spotify could not update Liked Songs (" + response.code + "). The connected session may not allow library edits."
-                )
-            }
+        val operation = if (liked) "addToLibrary" else "removeFromLibrary"
+        val variables = buildJsonObject {
+            putJsonArray("libraryItemUris") { add("spotify:track:$trackId") }
         }
+        gql(operation, ADD_TO_LIBRARY, variables, headers)
     }
 
-    /** Add a catalogue track to a Spotify playlist using the session's available Web API scopes. */
     /** Resolve a BitChord song to Spotify's catalogue when needed, then save it to Liked Songs. */
     suspend fun setLikedTrack(
         spotifyTrackId: String?,
@@ -213,24 +207,15 @@ object SpotifyLibrary {
         val trackId = spotifyTrackId?.takeIf { it.matches(Regex("[A-Za-z0-9]{22}")) }
             ?: searchTrackId(title, artist, headers)
             ?: throw IllegalStateException("Could not find this song in Spotify's catalogue")
-        val request = Request.Builder()
-            .url("https://api.spotify.com/v1/me/tracks?ids=$trackId")
-            .apply {
-                headers.forEach { (name, value) -> header(name, value) }
-                if (liked) put(ByteArray(0).toRequestBody(mediaType))
-                else delete(ByteArray(0).toRequestBody(mediaType))
-            }
-            .build()
-        Http.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException(
-                    "Spotify could not update Liked Songs (" + response.code + "). The connected session may not allow library edits."
-                )
-            }
+        val operation = if (liked) "addToLibrary" else "removeFromLibrary"
+        val variables = buildJsonObject {
+            putJsonArray("libraryItemUris") { add("spotify:track:$trackId") }
         }
+        gql(operation, ADD_TO_LIBRARY, variables, headers)
         trackId
     }
 
+    /** Add a catalogue track to a Spotify playlist using the Web Player mutation. */
     suspend fun addTrackToPlaylist(
         playlistId: String,
         spotifyTrackId: String?,
@@ -242,23 +227,15 @@ object SpotifyLibrary {
         val trackId = spotifyTrackId?.takeIf { it.matches(Regex("[A-Za-z0-9]{22}")) }
             ?: searchTrackId(title, artist, headers)
             ?: throw IllegalStateException("Could not find this song in Spotify's catalogue")
-        val body = buildJsonObject {
-            putJsonArray("uris") { add("spotify:track:$trackId") }
-        }.toString().toRequestBody(mediaType)
-        val request = Request.Builder()
-            .url("https://api.spotify.com/v1/playlists/$playlistId/tracks")
-            .apply {
-                headers.forEach { (name, value) -> header(name, value) }
-                post(body)
-            }
-            .build()
-        Http.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException(
-                    "Spotify could not add this track (" + response.code + "). The connected session may not allow playlist edits."
-                )
+        val variables = buildJsonObject {
+            put("playlistUri", "spotify:playlist:$playlistId")
+            putJsonArray("playlistItemUris") { add("spotify:track:$trackId") }
+            putJsonObject("newPosition") {
+                put("moveType", "BOTTOM_OF_PLAYLIST")
+                put("fromUid", JsonNull)
             }
         }
+        gql("addToPlaylist", ADD_TO_PLAYLIST, variables, headers)
         trackId
     }
 
