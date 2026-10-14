@@ -400,7 +400,7 @@ object AudioCache {
                 // can satisfy a later Low-data request without consulting the
                 // resolver, and a cached source rendition can bypass the
                 // source restrictions imposed by the current rung.
-                val qualityKey = AppSettings.effectiveAudioQuality.name.lowercase()
+                val qualityKey = AppSettings.effectiveAudioQuality.name
                 val rendition = QualityUpgrade.cacheTag(spec.uri)
                 when {
                     rendition != null -> "$videoId#$qualityKey#$rendition"
@@ -417,7 +417,7 @@ object AudioCache {
                 val source = uri.getQueryParameter("s")
                 val track = uri.getQueryParameter("t")
                 if (source != null && track != null) {
-                    val base = "$source|$track#${AppSettings.effectiveAudioQuality.name.lowercase()}"
+                    val base = "$source|$track#${AppSettings.effectiveAudioQuality.name}"
                     QualityUpgrade.cacheTag(uri)?.let { "$base#$it" } ?: base
                 } else {
                     null
