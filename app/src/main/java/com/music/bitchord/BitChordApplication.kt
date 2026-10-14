@@ -67,6 +67,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
             SpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, SpotifyToken.clientToken()) }
         }
         SpotifyLibraryCache.init(this)
+        com.music.bitchord.data.spotify.LocalPlaylistStore.init(this)
         // The per-app language picker, which YouTube Music's `hl` follows.
         // Full tag (zh-Hant / zh-Hans preserved); Innertube maps to hl/gl.
         Innertube.appLanguage = { AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() }
