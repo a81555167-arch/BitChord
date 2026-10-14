@@ -2379,57 +2379,20 @@ private fun BitChordApp(
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
-            // The heart reflects both the account's library and the local
-            // fallback. That keeps its second tap useful even when the account
-            // is signed out or Spotify refused the first write.
-            likeStatus = run {
-                val locallyLiked = localPlaylists.any { playlist ->
-                    playlist.title.equals("Liked Songs", ignoreCase = true) &&
-                        playlist.songs.any { local ->
-                            (song.spotifyTrackId != null && local.spotifyTrackId == song.spotifyTrackId) ||
-                                (song.videoId.isNotBlank() && local.videoId == song.videoId) ||
-                                (local.title.equals(song.title, ignoreCase = true) &&
-                                    local.artist.equals(song.artist, ignoreCase = true))
-                        }
-                }
-                val accountLiked = if (song.spotifyTrackId != null) {
-                    song.spotifyTrackId in spotifyLikedIds
+            // The heart represents playlist membership: it is accented while
+            // the track belongs to at least one list, and neutral when it does not.
+            likeStatus = if (
+                if (playlistMembershipSongKey == (song.spotifyTrackId ?: song.videoId)) {
+                    playlistMembershipIds.isNotEmpty()
                 } else {
-                    likeStatuses[song.videoId] == LikeStatus.LIKE
+                    cachedPlayerMembershipIds.isNotEmpty()
                 }
-                if (accountLiked || locallyLiked) LikeStatus.LIKE
-                else LikeStatus.INDIFFERENT
-            },
+            ) LikeStatus.LIKE else LikeStatus.INDIFFERENT,
             onToggleLike = {
-                val spotifyTrackId = song.spotifyTrackId
-                val locallyLiked = localPlaylists.any { playlist ->
-                    playlist.title.equals("Liked Songs", ignoreCase = true) &&
-                        playlist.songs.any { local ->
-                            (spotifyTrackId != null && local.spotifyTrackId == spotifyTrackId) ||
-                                (song.videoId.isNotBlank() && local.videoId == song.videoId) ||
-                                (local.title.equals(song.title, ignoreCase = true) &&
-                                    local.artist.equals(song.artist, ignoreCase = true))
-                        }
-                }
-                if (spotifyTrackId != null) {
-                    if (spotifyTrackId in spotifyLikedIds || locallyLiked) {
-                        viewModel.loadPlaylists()
-                        playlistTarget = song
-                    } else {
-                        // The view model keeps a local copy only if Spotify's
-                        // mutation fails, avoiding a shadow playlist on success.
-                        viewModel.toggleSpotifyLike(spotifyTrackId, song)
-                    }
-                } else if (likeStatuses[song.videoId] == LikeStatus.LIKE || locallyLiked) {
-                    viewModel.loadPlaylists()
-                    playlistTarget = song
-                } else {
-                    // Works for guests too: the local copy is durable even if
-                    // YouTube Music cannot accept the account-side like.
-                    com.music.bitchord.data.spotify.LocalPlaylistStore
-                        .addSongToPlaylist("Liked Songs", song)
-                    viewModel.toggleLike(song.videoId)
-                }
+                manageTrackPlaylists = true
+                playlistMembershipLoading = true
+                viewModel.loadPlaylists()
+                playlistTarget = song
             },
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
