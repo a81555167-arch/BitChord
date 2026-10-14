@@ -775,7 +775,6 @@ fun NowPlayingScreen(
     // itself (create/join) when there isn't one.
     val openListenTogetherMembers: () -> Unit = { showListenTogetherMembers = true }
 
-    val syncedLyricsEnabled by PlayerSettings.syncedLyrics.collectAsStateWithLifecycle()
     val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     // A lambda, not a value: read by the lyric strip and panel in scopes of
     // their own, so a tick recomposes them and not the player around them.
