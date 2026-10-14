@@ -1,5 +1,8 @@
 name: MyBit - Spotify Sync - APK Build
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main, feature/spotify-library-cache]
@@ -45,3 +48,14 @@ jobs:
       with:
         name: MyBit-Spotify-Bidirectional-Sync-APK
         path: app/build/outputs/apk/prod/debug/MyBit-Spotify-Bidirectional-Sync.apk
+
+    - name: Publish direct APK download
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: mybit-test-latest
+        target_commitish: feature/spotify-library-cache
+        name: MyBit test build (latest)
+        prerelease: true
+        make_latest: false
+        overwrite_files: true
+        files: app/build/outputs/apk/prod/debug/MyBit-Spotify-Bidirectional-Sync.apk
