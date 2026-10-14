@@ -395,11 +395,17 @@ object AudioCache {
             // that, when the swap blocked on a cache lock the outgoing reader
             // still held.
             ?.let { videoId ->
+                // Cache keys must follow the active quality rung as well as
+                // the track. Otherwise a 128kbps entry from a previous session
+                // can satisfy a later Low-data request without consulting the
+                // resolver, and a cached source rendition can bypass the
+                // source restrictions imposed by the current rung.
+                val qualityKey = AppSettings.effectiveAudioQuality.name.lowercase()
                 val rendition = QualityUpgrade.cacheTag(spec.uri)
                 when {
-                    rendition != null -> "$videoId#$rendition"
-                    SourceResolver.canSubstituteForYouTube() -> "$videoId#alt${atmosKeySuffix()}"
-                    else -> videoId
+                    rendition != null -> "$videoId#$qualityKey#$rendition"
+                    SourceResolver.canSubstituteForYouTube() -> "$videoId#$qualityKey#alt${atmosKeySuffix()}"
+                    else -> "$videoId#$qualityKey"
                 }
             }
             // A source-backed track keys on the source and its track id alone.
@@ -411,7 +417,7 @@ object AudioCache {
                 val source = uri.getQueryParameter("s")
                 val track = uri.getQueryParameter("t")
                 if (source != null && track != null) {
-                    val base = "$source|$track"
+                    val base = "$source|$track#${AppSettings.effectiveAudioQuality.name.lowercase()}"
                     QualityUpgrade.cacheTag(uri)?.let { "$base#$it" } ?: base
                 } else {
                     null
