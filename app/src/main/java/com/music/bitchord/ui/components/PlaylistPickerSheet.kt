@@ -181,7 +181,12 @@ fun PlaylistPickerSheet(
                             playlist = playlist,
                             selected = ticked,
                             onClick = {
-                                selected = if (ticked) selected - playlist.playlistId else selected + playlist.playlistId
+                                // Don't accept taps until remote membership is known:
+                                // otherwise an already-present playlist could be re-added
+                                // while its checked state is still loading.
+                                if (!selectionLoading) {
+                                    selected = if (ticked) selected - playlist.playlistId else selected + playlist.playlistId
+                                }
                             },
                         )
                     }
