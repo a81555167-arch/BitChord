@@ -73,6 +73,43 @@ object LocalPlaylistStore {
         return playlist
     }
 
+    /**
+     * Adds a track to the local copy of a playlist, creating that copy when
+     * Spotify is unavailable or the destination has not been imported yet.
+     * Matching by title lets an imported local playlist remain the offline
+     * fallback for its Spotify counterpart.
+     */
+    fun addSongToPlaylist(title: String, song: Song): LocalPlaylist {
+        val cleanTitle = title.trim().ifBlank { "Liked Songs" }
+        val existing = _playlists.value.firstOrNull {
+            it.title.equals(cleanTitle, ignoreCase = true)
+        }
+        val playlist = if (existing == null) {
+            LocalPlaylist(
+                id = "sp_local_" + System.currentTimeMillis(),
+                title = cleanTitle,
+                songs = listOf(song),
+            )
+        } else {
+            val alreadyPresent = existing.songs.any { current ->
+                (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
+                    (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
+                    (current.title.equals(song.title, ignoreCase = true) &&
+                        current.artist.equals(song.artist, ignoreCase = true))
+            }
+            if (alreadyPresent) return existing
+            existing.copy(songs = existing.songs + song)
+        }
+        val updated = if (existing == null) {
+            listOf(playlist) + _playlists.value
+        } else {
+            _playlists.value.map { if (it.id == existing.id) playlist else it }
+        }
+        _playlists.value = updated
+        persist(updated)
+        return playlist
+    }
+
     fun deletePlaylist(id: String) {
         val updated = _playlists.value.filterNot { it.id == id || it.browseId == id || it.id == id.removePrefix("local:playlist:") }
         _playlists.value = updated

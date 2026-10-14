@@ -762,11 +762,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 .onFailure { failure ->
-                    Toast.makeText(
-                        getApplication(),
-                        failure.message ?: "Spotify could not update Liked Songs",
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    if (!wasLiked) {
+                        val local = com.music.bitchord.data.spotify.LocalPlaylistStore
+                            .addSongToPlaylist("Liked Songs", song)
+                        Toast.makeText(
+                            getApplication(),
+                            "Spotify could not update Liked Songs. Saved to local playlist \"undefined\".",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    } else {
+                        Toast.makeText(
+                            getApplication(),
+                            failure.message ?: "Spotify could not update Liked Songs",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
                 }
         }
     }
@@ -1070,7 +1080,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     AddOutcome.ADDED
                 },
-                onFailure = { AddOutcome.FAILED },
+                onFailure = {
+                    // Keep the requested addition on-device when Spotify rejects
+                    // the write or the session has expired. If this playlist was
+                    // imported before, its local copy is updated; otherwise a
+                    // local fallback with the same title is created.
+                    com.music.bitchord.data.spotify.LocalPlaylistStore
+                        .addSongToPlaylist(playlist.title, song)
+                    AddOutcome.ADDED
+                },
             )
         }
         val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
