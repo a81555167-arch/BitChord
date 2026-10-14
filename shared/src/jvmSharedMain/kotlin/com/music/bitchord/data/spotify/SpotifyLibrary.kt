@@ -245,6 +245,20 @@ object SpotifyLibrary {
         val name = title.trim()
         require(name.isNotEmpty()) { "Playlist name cannot be empty" }
         val headers = authHeaders()
+        val profileRequest = Request.Builder()
+            .url("https://api.spotify.com/v1/me")
+            .apply { headers.forEach { (key, value) -> header(key, value) } }
+            .get()
+            .build()
+        val profilePayload = Http.client.newCall(profileRequest).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException("Spotify could not identify the connected account (" + response.code + ")")
+            }
+            text
+        }
+        val userId = json.parseToJsonElement(profilePayload).jsonObject.str("id")
+            ?: throw IllegalStateException("Spotify did not return the connected account id")
         val body = buildJsonObject {
             put("name", name)
             put("public", false)
@@ -252,7 +266,7 @@ object SpotifyLibrary {
             put("description", "Created with MyBit")
         }.toString().toRequestBody(mediaType)
         val request = Request.Builder()
-            .url("https://api.spotify.com/v1/me/playlists")
+            .url("https://api.spotify.com/v1/users/$userId/playlists")
             .apply {
                 headers.forEach { (key, value) -> header(key, value) }
                 post(body)
