@@ -1021,7 +1021,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         onResult: (added: Int, alreadyThere: Int, failed: Int) -> Unit = { _, _, _ -> },
     ) {
         if (playlists.isEmpty()) return
-        if (playlists.any { !it.playlistId.startsWith("spotify:") } && !requireSignIn()) return
+        if (playlists.any {
+                !it.playlistId.startsWith("spotify:") &&
+                    !it.playlistId.startsWith("local:playlist:")
+            } && !requireSignIn()) return
         viewModelScope.launch {
             val outcomes = playlists.map { addOne(it, song) }
             onResult(
@@ -1035,6 +1038,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
 
     private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
+        if (playlist.playlistId.startsWith("local:playlist:")) {
+            return when (
+                com.music.bitchord.data.spotify.LocalPlaylistStore
+                    .addSongToLocalPlaylist(playlist.playlistId, song)
+            ) {
+                true -> AddOutcome.ADDED
+                false -> AddOutcome.ALREADY_THERE
+                null -> AddOutcome.FAILED
+            }
+        }
         if (playlist.playlistId.startsWith("spotify:")) {
             val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
             val accountKey = AppSettings.spotifySpdcToken.value
