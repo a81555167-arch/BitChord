@@ -261,9 +261,18 @@ object StreamResolver {
     suspend fun resolve(videoId: String): String {
         init
 
+        val ceiling = maxKbps()
         recent[videoId]
-            ?.takeIf { MonotonicClock.nowMs() - it.at < URL_TTL_MS }
+            ?.takeIf {
+                MonotonicClock.nowMs() - it.at < URL_TTL_MS &&
+                    it.kbps in 1..ceiling
+            }
             ?.let { return it.url }
+        // A stream resolved before a quality change must not bypass the new
+        // ceiling just because its signed URL is still alive.
+        recent[videoId]?.let { cached ->
+            if (cached.kbps !in 1..ceiling) recent.remove(videoId, cached)
+        }
 
         // A verdict, not a failure: asking again cannot change the answer, so
         // every caller after the first is told so without a request being sent.
@@ -276,7 +285,7 @@ object StreamResolver {
         // real figure is ever known.
         NerdStats.onStreamPicked(videoId, stream.kbps)
         stream.loudnessDb?.let { loudness[videoId] = it }
-        remember(videoId, stream.url)
+        remember(videoId, stream.url, stream.kbps)
         return stream.url
     }
 
@@ -1075,7 +1084,7 @@ object StreamResolver {
     suspend fun contentLength(videoId: String): Long? =
         resolve(videoId).toHttpUrlOrNull()?.queryParameter("clen")?.toLongOrNull()
 
-    private class Resolved(val url: String, val at: Long)
+    private class Resolved(val url: String, val kbps: Int, val at: Long)
 
     /**
      * Stream URLs already resolved, by videoId — and, since [resolve] only ever
@@ -1095,12 +1104,12 @@ object StreamResolver {
     /** Enough for the queue in hand; this is a latency cache, not a store. */
     private const val MAX_REMEMBERED = 32
 
-    private fun remember(videoId: String, url: String) {
+    private fun remember(videoId: String, url: String, kbps: Int) {
         if (recent.size >= MAX_REMEMBERED) {
             val cutoff = MonotonicClock.nowMs() - URL_TTL_MS
             recent.entries.removeAll { it.value.at < cutoff }
             if (recent.size >= MAX_REMEMBERED) recent.clear()
         }
-        recent[videoId] = Resolved(url, MonotonicClock.nowMs())
+        recent[videoId] = Resolved(url, kbps, MonotonicClock.nowMs())
     }
 }
