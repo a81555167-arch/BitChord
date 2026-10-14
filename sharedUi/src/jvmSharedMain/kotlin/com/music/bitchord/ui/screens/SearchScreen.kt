@@ -751,7 +751,12 @@ private fun LazyListScope.recentSearches(
     items(history, key = { "recent:${it.id}" }) { entity ->
         RecentSearchEntityRow(
             entity = entity,
-            isCurrent = entity.entityType == EntityType.TRACK && entity.id == currentSong?.videoId,
+            isCurrent = entity.entityType == EntityType.TRACK && currentSong != null && (
+                entity.id == currentSong.videoId ||
+                    entity.id == currentSong.spotifyTrackId ||
+                    (entity.title.equals(currentSong.title, ignoreCase = true) &&
+                        entity.subtitle.equals(currentSong.artist, ignoreCase = true))
+                ),
             isPlaying = isPlaying,
             onClick = { onClick(entity) },
             onRemove = { onRemove(entity.id) },
