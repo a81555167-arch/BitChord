@@ -661,6 +661,12 @@ private fun BitChordApp(
     // Separate from [songActions] so the menu can close behind it — the picker
     // is the next step, not a second sheet stacked on the first.
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // In this mode the player's heart manages playlist membership instead of
+    // rating a track or directly toggling Spotify's Liked Songs.
+    var manageTrackPlaylists by remember { mutableStateOf(false) }
+    var playlistMembershipIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var playlistMembershipSongKey by remember { mutableStateOf<String?>(null) }
+    var playlistMembershipLoading by remember { mutableStateOf(false) }
     val spotifyCookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     var spotifyPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var spotifyPlaylistsLoading by remember { mutableStateOf(false) }
@@ -894,6 +900,57 @@ private fun BitChordApp(
     // Playlists imported without (or instead of) a YouTube Music account live
     // in the app's own store, and sit on the same shelf as the downloaded ones.
     val localPlaylists by com.music.bitchord.data.spotify.LocalPlaylistStore.playlists.collectAsStateWithLifecycle()
+    val pickerPlaylists = remember(playlists, localPlaylists, spotifyPlaylists, context) {
+        playlists +
+            localPlaylists.map { local ->
+                com.music.bitchord.data.model.UserPlaylist(
+                    playlistId = local.browseId,
+                    title = local.title,
+                    subtitle = context.getString(R.string.local_playlist_subtitle, local.songs.size),
+                    thumbnailUrl = local.songs.firstOrNull { !it.thumbnailUrl.isNullOrBlank() }?.thumbnailUrl,
+                )
+            } + spotifyPlaylists.map { spotify ->
+            com.music.bitchord.data.model.UserPlaylist(
+                playlistId = "spotify:${spotify.id}",
+                title = spotify.name,
+                subtitle = spotify.owner.orEmpty(),
+                thumbnailUrl = spotify.imageUrl,
+            )
+        }
+    }
+    val cachedPlayerMembershipIds = remember(
+        player.song?.spotifyTrackId,
+        player.song?.videoId,
+        pickerPlaylists,
+        spotifyCookie,
+    ) {
+        player.song?.let { viewModel.cachedPlaylistMembershipIds(pickerPlaylists, it) }.orEmpty()
+    }
+    LaunchedEffect(
+        playlistTarget?.videoId,
+        playlistTarget?.spotifyTrackId,
+        manageTrackPlaylists,
+        pickerPlaylists,
+        playlistsLoading,
+        spotifyPlaylistsLoading,
+    ) {
+        val target = playlistTarget
+        if (!manageTrackPlaylists || target == null) {
+            playlistMembershipLoading = false
+            return@LaunchedEffect
+        }
+        if (playlistsLoading || spotifyPlaylistsLoading) return@LaunchedEffect
+        playlistMembershipLoading = true
+        try {
+            val found = viewModel.playlistMembershipIds(pickerPlaylists, target)
+            if (playlistTarget?.videoId == target.videoId && manageTrackPlaylists) {
+                playlistMembershipIds = found
+                playlistMembershipSongKey = target.spotifyTrackId ?: target.videoId
+            }
+        } finally {
+            playlistMembershipLoading = false
+        }
+    }
     val localPlaylistItems = localPlaylists.map { playlist ->
         ShelfItem(
             title = playlist.title,
