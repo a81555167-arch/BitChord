@@ -74,7 +74,7 @@ private const val SURFACE_OPACITY = 0.4f
  * one sixteenth of full resolution. That matters most mid-fold, when shared
  * transitions can briefly keep several glass surfaces alive together.
  */
-private const val GLASS_RESOLUTION_SCALE = 0.25f
+private const val GLASS_RESOLUTION_SCALE = 0.20f
 
 /**
  * The hairline along a bar's edge, and what stands in for the glass rim
