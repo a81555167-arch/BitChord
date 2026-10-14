@@ -265,13 +265,17 @@ object StreamResolver {
         recent[videoId]
             ?.takeIf {
                 MonotonicClock.nowMs() - it.at < URL_TTL_MS &&
+                    it.ceiling == ceiling &&
                     it.kbps in 1..ceiling
             }
             ?.let { return it.url }
-        // A stream resolved before a quality change must not bypass the new
-        // ceiling just because its signed URL is still alive.
+        // A stream resolved under a different ceiling must be refreshed in
+        // either direction: high-to-low can overspend, low-to-high can stay
+        // needlessly low for the entire URL cache TTL.
         recent[videoId]?.let { cached ->
-            if (cached.kbps !in 1..ceiling) recent.remove(videoId, cached)
+            if (cached.ceiling != ceiling || cached.kbps !in 1..ceiling) {
+                recent.remove(videoId, cached)
+            }
         }
 
         // A verdict, not a failure: asking again cannot change the answer, so
@@ -279,13 +283,13 @@ object StreamResolver {
         // See [rememberUnplayable] for why this is the fix for "stuck loading".
         unplayableReason(videoId)?.let { throw PermanentlyUnplayableException(it) }
 
-        val stream = coalescedResolve(videoId)
+        val stream = coalescedResolve(videoId, ceiling)
 
         // The container carries no bitrate field, so this is the only place the
         // real figure is ever known.
         NerdStats.onStreamPicked(videoId, stream.kbps)
         stream.loudnessDb?.let { loudness[videoId] = it }
-        remember(videoId, stream.url, stream.kbps)
+        remember(videoId, stream.url, stream.kbps, ceiling)
         return stream.url
     }
 
@@ -395,15 +399,17 @@ object StreamResolver {
      * single largest producer of lines in the log, and every one of them was
      * previously filed against whatever happened to be playing while the walk
      * ran, which for read-ahead is the track before this one.
-     */    private suspend fun coalescedResolve(videoId: String): Stream {
-        inFlight[videoId]?.let { return it.await() }
+     */    private suspend fun coalescedResolve(videoId: String, ceiling: Int): Stream {
+        // Different quality ceilings must never share an in-flight resolution.
+        val resolveKey = "$videoId@$ceiling"
+        inFlight[resolveKey]?.let { return it.await() }
         // Started lazily so that losing the race below costs nothing: the walk
         // that gets discarded has not run a line, so cancelling it fires no
         // requests and leaves no half-finished deferred behind.
         val walk = resolverScope.async(TrackLog.about(videoId), start = CoroutineStart.LAZY) {
-            resolveUncached(videoId)
+            resolveUncached(videoId, ceiling)
         }
-        val running = inFlight.putIfAbsent(videoId, walk)
+        val running = inFlight.putIfAbsent(resolveKey, walk)
         if (running != null) {
             walk.cancel()
             return running.await()
@@ -422,7 +428,7 @@ object StreamResolver {
         // resolves for one track, 4472ms and 4620ms, 2.8s of them concurrent,
         // each paying for the other's round trips. The doc comment above
         // promised one walk per videoId and the finally guaranteed the opposite.
-        walk.invokeOnCompletion { inFlight.remove(videoId, walk) }
+        walk.invokeOnCompletion { inFlight.remove(resolveKey, walk) }
         walk.start()
         return walk.await()
     }
@@ -431,13 +437,15 @@ object StreamResolver {
 
     private val resolverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private suspend fun resolveUncached(videoId: String): Stream {
+    private suspend fun resolveUncached(videoId: String, ceiling: Int): Stream {
         val resolveStart = MonotonicClock.nowMs()
         val stream = try {
-            timed("$videoId InnerTubeX") { innerTubeXStream(videoId) }
+            timed("$videoId InnerTubeX") { innerTubeXStream(videoId, maxKbps = ceiling) }
                 ?: run {
-                    TrackLog.w(TAG, "InnerTubeX found no usable stream for $videoId; falling back to extraction")
-                    timed("$videoId newPipeStream") { newPipeStream(videoId, ::pickForQuality) }
+                    TrackLog.w(TAG, "InnerTubeX found no usable stream under $ceiling kbps for $videoId; falling back to extraction")
+                    timed("$videoId newPipeStream") {
+                        newPipeStream(videoId) { candidates -> pickForQuality(candidates, ceiling) }
+                    }
                 }
         } catch (e: CancellationException) {
             throw e
@@ -695,8 +703,7 @@ object StreamResolver {
      * surface the failure instead of quietly spending more mobile data than the
      * listener selected. Download selection has its own policy below.
      */
-    private fun <T> pickForQuality(candidates: List<Pair<Int, T>>): T? {
-        val ceiling = maxKbps()
+    private fun <T> pickForQuality(candidates: List<Pair<Int, T>>, ceiling: Int): T? {
         return candidates.asSequence()
             .filter { it.first in 1..ceiling }
             .maxByOrNull { it.first }
@@ -1096,7 +1103,7 @@ object StreamResolver {
     suspend fun contentLength(videoId: String): Long? =
         resolve(videoId).toHttpUrlOrNull()?.queryParameter("clen")?.toLongOrNull()
 
-    private class Resolved(val url: String, val kbps: Int, val at: Long)
+    private class Resolved(val url: String, val kbps: Int, val ceiling: Int, val at: Long)
 
     /**
      * Stream URLs already resolved, by videoId — and, since [resolve] only ever
@@ -1116,12 +1123,12 @@ object StreamResolver {
     /** Enough for the queue in hand; this is a latency cache, not a store. */
     private const val MAX_REMEMBERED = 32
 
-    private fun remember(videoId: String, url: String, kbps: Int) {
+    private fun remember(videoId: String, url: String, kbps: Int, ceiling: Int) {
         if (recent.size >= MAX_REMEMBERED) {
             val cutoff = MonotonicClock.nowMs() - URL_TTL_MS
             recent.entries.removeAll { it.value.at < cutoff }
             if (recent.size >= MAX_REMEMBERED) recent.clear()
         }
-        recent[videoId] = Resolved(url, kbps, MonotonicClock.nowMs())
+        recent[videoId] = Resolved(url, kbps, ceiling, MonotonicClock.nowMs())
     }
 }
