@@ -1031,6 +1031,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
 
     /**
+     * Cheap, offline membership lookup for the player heart. It only consults
+     * existing caches and local playlists; it never starts a network request
+     * during ordinary playback/recomposition.
+     */
+    fun cachedPlaylistMembershipIds(
+        playlists: List<UserPlaylist>,
+        song: Song,
+    ): Set<String> {
+        val accountKey = AppSettings.spotifySpdcToken.value
+            .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+        return playlists.filter { playlist ->
+            when {
+                playlist.playlistId.startsWith("spotify:") -> {
+                    val id = playlist.playlistId.removePrefix("spotify:")
+                    val cached = accountKey?.let { SpotifyLibraryCache.getTracks(it, id) }.orEmpty()
+                    cached.any { track ->
+                        (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
+                            (track.title.equals(song.title, ignoreCase = true) &&
+                                track.artist.equals(song.artist, ignoreCase = true))
+                    }
+                }
+                playlist.playlistId.startsWith("local:playlist:") ->
+                    com.music.bitchord.data.spotify.LocalPlaylistStore
+                        .getPlaylist(playlist.playlistId)?.songs.orEmpty()
+                        .any { candidate -> samePlaylistSong(candidate, song) }
+                else -> false
+            }
+        }.mapTo(mutableSetOf()) { it.playlistId }
+    }
+
+    /**
      * Finds the playlists that currently contain [song]. Reuses fresh Spotify
      * track caches and refreshes stale/missing ones only when the user opens
      * the player's playlist manager. At most three remote playlist reads run
