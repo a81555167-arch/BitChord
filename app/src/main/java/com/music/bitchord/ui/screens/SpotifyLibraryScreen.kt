@@ -248,3 +248,171 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         }
     }
 }
+
+@Composable
+private fun LibraryRow(
+    title: String,
+    subtitle: String,
+    imageUrl: String?,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+private val SPOTIFY_COOKIE_URLS = listOf(
+    "https://open.spotify.com",
+    "https://accounts.spotify.com",
+    "https://www.spotify.com",
+    "https://spotify.com",
+)
+
+private val LOGIN_HOST_SUFFIXES = listOf(
+    "spotify.com", "spotifycdn.com", "scdn.co",
+    "google.com", "gstatic.com", "recaptcha.net",
+    "facebook.com", "apple.com",
+    // Spotify can hand login verification to third-party CAPTCHA providers.
+    "arkoselabs.com", "funcaptcha.com", "hcaptcha.com",
+    "captcha-delivery.com", "cloudflare.com",
+)
+
+private fun hostMatches(uri: Uri?, suffixes: List<String>): Boolean {
+    if (uri?.scheme != "https") return false
+    val host = uri.host?.lowercase() ?: return false
+    return suffixes.any { host == it || host.endsWith(".$it") }
+}
+
+private fun isSpotifyHost(uri: Uri?) = hostMatches(uri, listOf("spotify.com"))
+
+private fun isLoginHost(uri: Uri?) = hostMatches(uri, LOGIN_HOST_SUFFIXES)
+
+/**
+ * Signs the login WebView out of Spotify. Disconnecting only forgot the
+ * stored cookie, and the WebView's own jar would have signed the next
+ * "Sign in" straight back in. Only Spotify's cookies go — the same jar holds
+ * the YouTube Music sign-in.
+ */
+fun clearSpotifyWebSession() {
+    val cookies = CookieManager.getInstance()
+    for (url in SPOTIFY_COOKIE_URLS) {
+        val names = cookies.getCookie(url)?.split(";")
+            ?.map { it.substringBefore("=").trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+        for (name in names) {
+            val expired = "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/"
+            cookies.setCookie(url, expired)
+            cookies.setCookie(url, "$expired; Domain=.spotify.com")
+        }
+    }
+    cookies.flush()
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun SpotifyLogin(
+    onConnected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var sent by remember { mutableStateOf(false) }
+    var loginGeneration by remember { mutableIntStateOf(0) }
+    key(loginGeneration) {
+    AndroidView(
+        modifier = modifier.fillMaxSize(),
+        factory = { context ->
+            WebView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.userAgentString = LOGIN_USER_AGENT
+                if (Build.VERSION.SDK_INT >= 33) {
+                    settings.isAlgorithmicDarkeningAllowed = false
+                } else if (Build.VERSION.SDK_INT >= 29) {
+                    @Suppress("DEPRECATION")
+                    settings.forceDark = WebSettings.FORCE_DARK_OFF
+                }
+                setBackgroundColor(0xFF121212.toInt())
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                webViewClient = object : WebViewClient() {
+                    // Spotify's own pages and the identity providers its sign-in
+                    // hands off to; anything else is not part of logging in.
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest,
+                    ): Boolean = !isLoginHost(request.url)
+
+                    override fun onRenderProcessGone(
+                        view: WebView,
+                        detail: RenderProcessGoneDetail,
+                    ): Boolean {
+                        // A dead Chromium renderer must not take BitChord down with it.
+                        // Recreate the login WebView on the next Compose frame.
+                        sent = false
+                        loginGeneration += 1
+                        return true
+                    }
+
+                    override fun onPageFinished(view: WebView, url: String?) {
+                        if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
+                        if (sent || url?.startsWith("https://open.spotify.com") != true) return
+                        val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
+                        val token = raw.split(";")
+                            .map { it.trim() }
+                            .firstOrNull { it.startsWith("sp_dc=") }
+                            ?.substringAfter("=")
+                            ?.takeIf { it.isNotBlank() }
+                            ?: return
+                        sent = true
+                        onConnected(token)
+                    }
+                }
+                loadUrl(LOGIN_URL)
+            }
+        },
+        onRelease = { it.destroy() },
+    )
+    }
+}
+private fun spotifyCacheAccountKey(cookie: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(cookie.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte ->
+            "%02x".format(byte.toInt() and 0xff)
+        }
