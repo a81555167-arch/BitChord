@@ -60,6 +60,8 @@ object SpotifyLibrary {
     private const val GQL = "https://api-partner.spotify.com/pathfinder/v2/query"
     private const val LIBRARY = "973e511ca44261fda7eebac8b653155e7caee3675abb4fb110cc1b8c78b091c3"
     private const val PLAYLIST = "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763"
+    private const val SEARCH_TRACKS = "bc1ca2fcd0ba1013a0fc88e6cc4f190af501851e3dafd3e1ef85840297694428"
+    private const val SEARCH_DESKTOP = "75bbf6bfcfdf85b8fc828417bfad92b7cd66bf7f556d85670f4da8292373ebec"
     // Spotify's Web Player mutations. Unlike api.spotify.com REST endpoints,
     // these use the same session bearer that our embedded Web Player login yields.
     private const val ADD_TO_PLAYLIST = "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"
@@ -399,21 +401,103 @@ object SpotifyLibrary {
         }
     }
 
+    /**
+     * Resolve a YouTube/search result to Spotify's catalogue. The public REST
+     * search endpoint rejects Web Player session tokens on some sessions, so
+     * search through the same Pathfinder API used by Spotify itself first.
+     * Older query hashes are tried as a fallback because Spotify rotates them.
+     */
     private fun searchTrackId(title: String, artist: String, headers: Map<String, String>): String? {
-        val query = java.net.URLEncoder.encode("$title $artist", Charsets.UTF_8.name())
+        val term = listOf(title.trim(), artist.trim()).filter { it.isNotBlank() }.joinToString(" ")
+        if (term.isBlank()) return null
+
+        fun scoreSearchResults(root: JsonObject): String? {
+            val items = root.obj("data")?.obj("searchV2")?.obj("tracks")?.arr("items")
+                ?: root.obj("data")?.obj("search")?.obj("tracks")?.arr("items")
+                ?: root.obj("tracks")?.arr("items")
+                ?: return null
+            fun normalize(value: String) = value.lowercase()
+                .replace(Regex("[^\\p{L}\\p{N}]"), "")
+            val wantedTitle = normalize(title)
+            val wantedArtist = normalize(artist)
+            val candidates = items.mapNotNull { element ->
+                val item = element.jsonObject
+                val data = item.obj("data") ?: item.obj("item")?.obj("data") ?: item
+                val uri = data.str("uri") ?: data.str("_uri") ?: item.str("_uri")
+                val id = uri?.substringAfterLast(":")
+                    ?: data.str("id")
+                    ?: return@mapNotNull null
+                if (!id.matches(Regex("[A-Za-z0-9]{22}"))) return@mapNotNull null
+                val candidateTitle = data.str("name") ?: data.str("title").orEmpty()
+                val artistNames = data.obj("artists")?.arr("items").orEmpty().mapNotNull { artistItem ->
+                    val obj = artistItem.jsonObject
+                    obj.obj("profile")?.str("name") ?: obj.obj("data")?.str("name") ?: obj.str("name")
+                } + data.arr("artists").orEmpty().mapNotNull { artistItem ->
+                    artistItem.jsonObject.str("name")
+                }
+                val candidateArtist = artistNames.joinToString(" ")
+                val normalizedTitle = normalize(candidateTitle)
+                val normalizedArtist = normalize(candidateArtist)
+                val titleMatches = wantedTitle.isNotBlank() &&
+                    (normalizedTitle == wantedTitle || normalizedTitle.contains(wantedTitle) || wantedTitle.contains(normalizedTitle))
+                val artistMatches = wantedArtist.isBlank() ||
+                    normalizedArtist.contains(wantedArtist) || wantedArtist.contains(normalizedArtist)
+                val score = (if (normalizedTitle == wantedTitle) 4 else if (titleMatches) 2 else 0) +
+                    (if (artistMatches) 3 else 0)
+                Triple(id, score, titleMatches && artistMatches)
+            }
+            return candidates.filter { it.third }.maxByOrNull { it.second }?.first
+        }
+
+        val variables = buildJsonObject {
+            put("searchTerm", term)
+            put("offset", 0)
+            put("limit", 10)
+            put("numberOfTopResults", 10)
+            put("includeAudiobooks", true)
+            put("includePreReleases", false)
+        }
+        runCatching { scoreSearchResults(gql("searchTracks", SEARCH_TRACKS, variables, headers)) }
+            .getOrNull()?.let { return it }
+
+        val desktopVariables = buildJsonObject {
+            put("searchTerm", term)
+            put("offset", 0)
+            put("limit", 10)
+            put("numberOfTopResults", 10)
+        }
+        runCatching { scoreSearchResults(gql("searchDesktop", SEARCH_DESKTOP, desktopVariables, headers)) }
+            .getOrNull()?.let { return it }
+
+        // Last-resort compatibility path for a valid OAuth-backed session.
+        val query = java.net.URLEncoder.encode("track:$title artist:$artist", Charsets.UTF_8.name())
         val request = Request.Builder()
-            .url("https://api.spotify.com/v1/search?q=$query&type=track&limit=1")
+            .url("https://api.spotify.com/v1/search?q=$query&type=track&limit=10&market=from_token")
             .apply { headers.forEach { (name, value) -> header(name, value) } }
             .get()
             .build()
-        val payload = Http.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException("Spotify search failed (" + response.code + ")")
+        val payload = runCatching {
+            Http.client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use ""
+                response.body?.string().orEmpty()
             }
-            response.body?.string().orEmpty()
-        }
-        return json.parseToJsonElement(payload).jsonObject
-            .obj("tracks")?.arr("items")?.firstOrNull()?.jsonObject?.str("id")
+        }.getOrNull().orEmpty()
+        if (payload.isBlank()) return null
+        val items = runCatching {
+            json.parseToJsonElement(payload).jsonObject.obj("tracks")?.arr("items").orEmpty()
+        }.getOrDefault(emptyList())
+        val wantedTitle = title.trim().lowercase()
+        val wantedArtist = artist.trim().lowercase()
+        return items.mapNotNull { element ->
+            val item = element.jsonObject
+            val id = item.str("id") ?: return@mapNotNull null
+            val name = item.str("name").orEmpty().trim().lowercase()
+            val artists = item.arr("artists").orEmpty().mapNotNull { it.jsonObject.str("name") }
+                .joinToString(" ").lowercase()
+            val titleMatches = name == wantedTitle || name.contains(wantedTitle) || wantedTitle.contains(name)
+            val artistMatches = wantedArtist.isBlank() || artists.contains(wantedArtist) || wantedArtist.contains(artists)
+            id.takeIf { titleMatches && artistMatches }
+        }.firstOrNull()
     }
 
     private fun playlistPage(headers: Map<String, String>, offset: Int): Triple<List<SpotifyPlaylist>, Int, Int> {
