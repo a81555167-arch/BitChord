@@ -420,7 +420,7 @@ private fun LazyListScope.librarySearchResults(
                     isCurrent = song.isSameTrackAs(currentSong),
                     isPlaying = isPlaying && song.isSameTrackAs(currentSong),
                     searchPlayingStyle = true,
-                    activeTint = PlayingAccent,
+                    activeTint = MaterialTheme.colorScheme.primary,
                 )
                 if (index < tracks.lastIndex) {
                     HorizontalDivider(
