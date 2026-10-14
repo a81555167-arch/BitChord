@@ -2,6 +2,7 @@ package com.music.bitchord.data.spotify
 
 import com.music.bitchord.data.Http
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -213,6 +214,7 @@ object SpotifyLibrary {
             putJsonArray("libraryItemUris") { add("spotify:track:$trackId") }
         }
         gql(operation, ADD_TO_LIBRARY, variables, headers)
+        if (liked) verifyLikedTrack(headers, trackId)
         trackId
     }
 
@@ -237,6 +239,10 @@ object SpotifyLibrary {
             }
         }
         gql("addToPlaylist", ADD_TO_PLAYLIST, variables, headers)
+        // A successful HTTP response alone is not proof that Spotify committed
+        // the edit. Confirm the track is visible in the playlist before telling
+        // the UI the add succeeded, so local UI state cannot mask a failed write.
+        verifyPlaylistTrack(headers, playlistId, trackId)
         trackId
     }
 
@@ -465,6 +471,42 @@ object SpotifyLibrary {
             put("limit", 100)
         }
         return parseLikedPage(gql("fetchLibraryTracks", LIKED, variables, headers))
+    }
+
+    /**
+     * Poll Spotify's own playlist query after a write. Playlist additions are
+     * appended at the end, so checking the last page avoids downloading a
+     * whole large playlist just to confirm one mutation.
+     */
+    private suspend fun verifyPlaylistTrack(
+        headers: Map<String, String>,
+        playlistId: String,
+        trackId: String,
+    ) {
+        repeat(3) { attempt ->
+            val firstPage = trackPage(headers, playlistId, 0)
+            val lastOffset = if (firstPage.second <= 0) 0 else ((firstPage.second - 1) / 100) * 100
+            val lastPage = if (lastOffset == 0) firstPage else trackPage(headers, playlistId, lastOffset)
+            if (firstPage.first.any { it.id == trackId } || lastPage.first.any { it.id == trackId }) return
+            if (attempt < 2) delay(400)
+        }
+        throw IllegalStateException(
+            "Spotify did not confirm that the song was added to this playlist. Refresh Spotify and try again."
+        )
+    }
+
+    /** Confirm a newly liked song is actually present in Spotify's Liked Songs library. */
+    private suspend fun verifyLikedTrack(headers: Map<String, String>, trackId: String) {
+        repeat(3) { attempt ->
+            val firstPage = likedPage(headers, 0)
+            val lastOffset = if (firstPage.second <= 0) 0 else ((firstPage.second - 1) / 100) * 100
+            val lastPage = if (lastOffset == 0) firstPage else likedPage(headers, lastOffset)
+            if (firstPage.first.any { it.id == trackId } || lastPage.first.any { it.id == trackId }) return
+            if (attempt < 2) delay(400)
+        }
+        throw IllegalStateException(
+            "Spotify did not confirm that the song was added to Liked Songs. Refresh Spotify and try again."
+        )
     }
 
     private suspend fun authHeaders(): Map<String, String> {
