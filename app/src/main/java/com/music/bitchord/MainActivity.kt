@@ -3250,6 +3250,7 @@ private fun BitChordApp(
                                     artworkUrl = song.thumbnailUrl,
                                     entityType = EntityType.TRACK,
                                 ))
+                                manageTrackPlaylists = false
                                 viewModel.loadPlaylists()
                                 playlistTarget = song
                             },
@@ -3261,6 +3262,7 @@ private fun BitChordApp(
                                     artworkUrl = song.thumbnailUrl,
                                     entityType = EntityType.TRACK,
                                 ))
+                                manageTrackPlaylists = false
                                 viewModel.loadPlaylists()
                                 playlistTarget = song
                             },
@@ -4344,6 +4346,7 @@ private fun BitChordApp(
                 },
                 onAddToPlaylist = {
                     songActions = null
+                    manageTrackPlaylists = false
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 },
@@ -4542,38 +4545,24 @@ private fun BitChordApp(
             val dismiss = {
                 playlistTarget = null
                 creatingPlaylist = false
+                manageTrackPlaylists = false
+                playlistMembershipLoading = false
             }
             ModalBottomSheet(
                 onDismissRequest = dismiss,
                 containerColor = MaterialTheme.colorScheme.background,
             ) {
                 PlaylistPickerSheet(
-                    playlists = playlists +
-                        localPlaylists.map { local ->
-                            com.music.bitchord.data.model.UserPlaylist(
-                                playlistId = local.browseId,
-                                title = local.title,
-                                subtitle = context.getString(R.string.local_playlist_subtitle, local.songs.size),
-                                thumbnailUrl = local.songs.firstOrNull { !it.thumbnailUrl.isNullOrBlank() }?.thumbnailUrl,
-                            )
-                        } + spotifyPlaylists.map { spotify ->
-                        com.music.bitchord.data.model.UserPlaylist(
-                            playlistId = "spotify:${spotify.id}",
-                            title = spotify.name,
-                            subtitle = spotify.owner.orEmpty(),
-                            thumbnailUrl = spotify.imageUrl,
-                        )
-                    },
+                    playlists = pickerPlaylists,
                     loading = playlistsLoading || spotifyPlaylistsLoading,
                     song = target,
                     startCreating = target == null,
+                    manageSelection = manageTrackPlaylists,
+                    initialSelectedPlaylistIds = if (manageTrackPlaylists) playlistMembershipIds else emptySet(),
+                    selectionLoading = manageTrackPlaylists && playlistMembershipLoading,
                     onAdd = { picked ->
                         target?.let { song ->
                             viewModel.addToPlaylists(picked, song) { added, alreadyThere, failed ->
-                                // One line for the whole batch, saying the
-                                // outcome that matters most: what went in, else
-                                // that it was all there already, else that it
-                                // didn't work.
                                 showQueueNotice(
                                     when {
                                         added > 1 -> context.resources.getQuantityString(
@@ -4585,6 +4574,38 @@ private fun BitChordApp(
                                         else -> context.getString(R.string.failed)
                                     },
                                 )
+                            }
+                        }
+                        dismiss()
+                    },
+                    onApplySelection = { added, removed ->
+                        target?.let { song ->
+                            val targetKey = song.spotifyTrackId ?: song.videoId
+                            playlistMembershipIds = (playlistMembershipIds + added.map { it.playlistId }) -
+                                removed.map { it.playlistId }.toSet()
+                            playlistMembershipSongKey = targetKey
+                            if (added.isNotEmpty()) {
+                                viewModel.addToPlaylists(added, song) { addedCount, alreadyThere, failed ->
+                                    showQueueNotice(
+                                        when {
+                                            failed > 0 -> context.getString(R.string.failed)
+                                            addedCount > 0 -> context.getString(R.string.song_added_to_playlist)
+                                            alreadyThere > 0 -> context.getString(R.string.song_already_in_playlist)
+                                            else -> context.getString(R.string.done)
+                                        },
+                                    )
+                                }
+                            }
+                            removed.forEach { playlist ->
+                                val removeId = when {
+                                    playlist.playlistId.startsWith("spotify:") ->
+                                        com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX +
+                                            playlist.playlistId.removePrefix("spotify:")
+                                    playlist.playlistId.startsWith("local:playlist:") ->
+                                        playlist.playlistId
+                                    else -> playlist.browseId
+                                }
+                                viewModel.removeFromPlaylist(removeId, song)
                             }
                         }
                         dismiss()
