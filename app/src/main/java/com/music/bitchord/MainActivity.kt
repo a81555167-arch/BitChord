@@ -2326,7 +2326,15 @@ private fun BitChordApp(
             // must read and write Spotify Liked Songs, while ordinary YouTube
             // tracks use the signed-in YouTube Music library.
             likeStatus = if (song.spotifyTrackId != null) {
-                if (song.spotifyTrackId in spotifyLikedIds) LikeStatus.LIKE
+                val locallyLiked = localPlaylists.any { playlist ->
+                    playlist.title.equals("Liked Songs", ignoreCase = true) &&
+                        playlist.songs.any { local ->
+                            local.spotifyTrackId == song.spotifyTrackId ||
+                                (local.title.equals(song.title, ignoreCase = true) &&
+                                    local.artist.equals(song.artist, ignoreCase = true))
+                        }
+                }
+                if (song.spotifyTrackId in spotifyLikedIds || locallyLiked) LikeStatus.LIKE
                 else LikeStatus.INDIFFERENT
             } else {
                 likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT
@@ -2334,7 +2342,15 @@ private fun BitChordApp(
             onToggleLike = {
                 val spotifyTrackId = song.spotifyTrackId
                 if (spotifyTrackId != null) {
-                    if (spotifyTrackId in spotifyLikedIds) {
+                    val locallyLiked = localPlaylists.any { playlist ->
+                        playlist.title.equals("Liked Songs", ignoreCase = true) &&
+                            playlist.songs.any { local ->
+                                local.spotifyTrackId == spotifyTrackId ||
+                                    (local.title.equals(song.title, ignoreCase = true) &&
+                                        local.artist.equals(song.artist, ignoreCase = true))
+                            }
+                    }
+                    if (spotifyTrackId in spotifyLikedIds || locallyLiked) {
                         viewModel.loadPlaylists()
                         playlistTarget = song
                     } else {
@@ -4484,7 +4500,15 @@ private fun BitChordApp(
                 containerColor = MaterialTheme.colorScheme.background,
             ) {
                 PlaylistPickerSheet(
-                    playlists = playlists + spotifyPlaylists.map { spotify ->
+                    playlists = playlists +
+                        localPlaylists.map { local ->
+                            com.music.bitchord.data.model.UserPlaylist(
+                                playlistId = local.browseId,
+                                title = local.title,
+                                subtitle = context.getString(R.string.local_playlist_subtitle, local.songs.size),
+                                thumbnailUrl = local.songs.firstOrNull { !it.thumbnailUrl.isNullOrBlank() }?.thumbnailUrl,
+                            )
+                        } + spotifyPlaylists.map { spotify ->
                         com.music.bitchord.data.model.UserPlaylist(
                             playlistId = "spotify:${spotify.id}",
                             title = spotify.name,
