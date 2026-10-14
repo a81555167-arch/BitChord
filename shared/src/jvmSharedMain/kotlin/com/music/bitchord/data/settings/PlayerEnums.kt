@@ -1,18 +1,15 @@
 package com.music.bitchord.data.settings
 
 /**
- * Stream bitrate ceiling on the YouTube fallback path — MEDIUM, HIGH and
- * LOSSLESS all mean "whatever the best available Opus format is" there; what
- * actually tells them apart is which other sources are allowed to answer
- * *before* YouTube gets asked. That part is [permits], and the rungs read:
+ * Stream bitrate ceiling and source tier for each connection.
+ *
+ * [permits] decides which sources may answer before YouTube is used as fallback:
  *
  * - [LOSSLESS] — the user's own addons and JioSaavn both asked.
- * - [HIGH] — the addons skipped, JioSaavn asked.
- * - [MEDIUM] and [LOW] — both skipped; YouTube's own Opus ladder is all there
- *   is, capped at [maxKbps].
+ * - [HIGH] — addons skipped, JioSaavn asked, then YouTube's best available stream.
+ * - [MEDIUM] and [LOW] — YouTube only, with a real bitrate ceiling of [maxKbps].
  *
- * [hourly] is what the ceiling costs in data over an hour of listening, which
- * is the only part of this a user actually cares about on a metered plan.
+ * [hourly] estimates the data consumed by an hour of continuous playback.
  */
 enum class AudioQuality(
     val maxKbps: Int,
