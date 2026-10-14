@@ -240,6 +240,63 @@ object SpotifyLibrary {
         trackId
     }
 
+    /** Create a private playlist in the connected Spotify account. */
+    suspend fun createPlaylist(title: String): SpotifyPlaylist = withContext(Dispatchers.IO) {
+        val name = title.trim()
+        require(name.isNotEmpty()) { "Playlist name cannot be empty" }
+        val headers = authHeaders()
+        val body = buildJsonObject {
+            put("name", name)
+            put("public", false)
+            put("collaborative", false)
+            put("description", "Created with MyBit")
+        }.toString().toRequestBody(mediaType)
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/me/playlists")
+            .apply {
+                headers.forEach { (key, value) -> header(key, value) }
+                post(body)
+            }
+            .build()
+        val payload = Http.client.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not create this playlist (" + response.code + "). The connected session may not allow playlist creation."
+                )
+            }
+            text
+        }
+        val item = json.parseToJsonElement(payload).jsonObject
+        val id = item.str("id") ?: throw IllegalStateException("Spotify created a playlist but returned no id")
+        SpotifyPlaylist(
+            id = id,
+            name = item.str("name") ?: name,
+            owner = item.obj("owner")?.str("display_name"),
+            imageUrl = item.obj("images")?.arr("items")?.firstOrNull()?.jsonObject?.str("url")
+                ?: item.arr("images")?.firstOrNull()?.jsonObject?.str("url"),
+        )
+    }
+
+    /** Remove a playlist from the connected Spotify account's library. For owned playlists this deletes it for the owner. */
+    suspend fun deletePlaylist(playlistId: String) = withContext(Dispatchers.IO) {
+        require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
+        val headers = authHeaders()
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId/followers")
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
+            .delete()
+            .build()
+        Http.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "Spotify could not delete this playlist (" + response.code + "). Only playlists you own can be deleted."
+                )
+            }
+        }
+        Unit
+    }
+
     /** Rename a Spotify playlist when the connected session permits playlist edits. */
     suspend fun renamePlaylist(playlistId: String, title: String) = withContext(Dispatchers.IO) {
         require(playlistId.matches(Regex("[A-Za-z0-9]{22}"))) { "Invalid Spotify playlist id" }
