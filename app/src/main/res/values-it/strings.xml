@@ -1229,4 +1229,6 @@
     <string name="spotify_track_unavailable">Impossibile trovare quel brano su YouTube Music</string>
     <string name="chinese_simplified">Cinese semplificato</string>
     <string name="chinese_traditional">Cinese tradizionale</string>
+    <string name="lyrics_original_title">Cerca i testi con il titolo originale</string>
+    <string name="lyrics_original_title_desc">Ripristina il titolo YouTube originale prima della ricerca, così da trovare anche i titoli tradotti.</string>
 </resources>

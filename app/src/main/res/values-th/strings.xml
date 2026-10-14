@@ -1273,4 +1273,6 @@
     <string name="spotify_track_unavailable">หาเพลงนั้นบน YouTube Music ไม่พบ</string>
     <string name="chinese_simplified">ภาษาจีนตัวย่อ</string>
     <string name="chinese_traditional">ภาษาจีนตัวเต็ม</string>
+    <string name="lyrics_original_title">ค้นหาเนื้อเพลงด้วยชื่อเพลงต้นฉบับ</string>
+    <string name="lyrics_original_title_desc">คืนชื่อ YouTube ต้นฉบับก่อนค้นหา เพื่อให้ค้นหาชื่อที่แปลแล้วได้ด้วย</string>
 </resources>

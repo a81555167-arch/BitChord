@@ -1330,4 +1330,6 @@
     <string name="spotify_track_unavailable">Nie znaleziono tego utworu w YouTube Music</string>
     <string name="chinese_simplified">Chiński uproszczony</string>
     <string name="chinese_traditional">Chiński tradycyjny</string>
+    <string name="lyrics_original_title">Szukaj tekstu z oryginalnym tytułem</string>
+    <string name="lyrics_original_title_desc">Przywróć oryginalny tytuł YouTube przed wyszukiwaniem, aby można było znaleźć także przetłumaczone tytuły.</string>
 </resources>

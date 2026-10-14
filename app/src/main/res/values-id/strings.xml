@@ -1267,4 +1267,6 @@
     <string name="spotify_track_unavailable">Lagu itu tidak ditemukan di YouTube Music</string>
     <string name="chinese_simplified">Tionghoa Sederhana</string>
     <string name="chinese_traditional">Tionghoa Tradisional</string>
+    <string name="lyrics_original_title">Cari lirik dengan judul asli</string>
+    <string name="lyrics_original_title_desc">Pulihkan judul YouTube asli sebelum mencari agar judul terjemahan juga dapat ditemukan.</string>
 </resources>

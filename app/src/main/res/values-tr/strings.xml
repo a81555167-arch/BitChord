@@ -1247,4 +1247,6 @@
     <string name="spotify_track_unavailable">O şarkı YouTube Music’de bulunamadı</string>
     <string name="chinese_simplified">Basitleştirilmiş Çince</string>
     <string name="chinese_traditional">Geleneksel Çince</string>
+    <string name="lyrics_original_title">Şarkı sözlerini özgün başlıkla ara</string>
+    <string name="lyrics_original_title_desc">Çevirilmiş başlıkların da bulunabilmesi için aramadan önce özgün YouTube başlığını geri yükler.</string>
 </resources>

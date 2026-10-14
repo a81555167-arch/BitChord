@@ -1268,4 +1268,6 @@
     <string name="spotify_track_unavailable">その曲は YouTube Music で見つかりません</string>
     <string name="chinese_simplified">簡体字中国語</string>
     <string name="chinese_traditional">繁体字中国語</string>
+    <string name="lyrics_original_title">元のタイトルで歌詞を検索</string>
+    <string name="lyrics_original_title_desc">検索前に YouTube の元のタイトルに戻し、翻訳されたタイトルでも見つけられるようにします。</string>
 </resources>

@@ -1322,4 +1322,6 @@
     <string name="spotify_track_unavailable">Не удалось найти этот трек на YouTube Music</string>
     <string name="chinese_simplified">Упрощённый китайский</string>
     <string name="chinese_traditional">Традиционный китайский</string>
+    <string name="lyrics_original_title">Искать текст по оригинальному названию</string>
+    <string name="lyrics_original_title_desc">Восстанавливает исходное название YouTube перед поиском, чтобы находились и переведённые названия.</string>
 </resources>

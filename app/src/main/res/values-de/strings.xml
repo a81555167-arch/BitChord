@@ -1290,4 +1290,6 @@
     <string name="spotify_track_unavailable">Diesen Titel gab es nicht auf YouTube Music</string>
     <string name="chinese_simplified">Vereinfachtes Chinesisch</string>
     <string name="chinese_traditional">Traditionelles Chinesisch</string>
+    <string name="lyrics_original_title">Nach Liedtexten mit dem Originaltitel suchen</string>
+    <string name="lyrics_original_title_desc">Stellt den ursprünglichen YouTube-Titel vor der Suche wieder her, damit auch übersetzte Titel gefunden werden.</string>
 </resources>

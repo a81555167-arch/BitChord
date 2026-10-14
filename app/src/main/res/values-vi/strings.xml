@@ -1207,4 +1207,6 @@
     <string name="spotify_track_unavailable">Không tìm thấy bài hát đó trên YouTube Music</string>
     <string name="chinese_simplified">Tiếng Trung giản thể</string>
     <string name="chinese_traditional">Tiếng Trung phồn thể</string>
+    <string name="lyrics_original_title">Tìm lời bài hát bằng tiêu đề gốc</string>
+    <string name="lyrics_original_title_desc">Khôi phục tiêu đề YouTube gốc trước khi tìm kiếm để vẫn tìm thấy cả các tiêu đề đã dịch.</string>
 </resources>

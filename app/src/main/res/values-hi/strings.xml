@@ -1290,4 +1290,6 @@
     <string name="spotify_track_unavailable">वह गाना YouTube Music पर नहीं मिला</string>
     <string name="chinese_simplified">सरलीकृत चीनी</string>
     <string name="chinese_traditional">पारंपरिक चीनी</string>
+    <string name="lyrics_original_title">मूल शीर्षक से गीत के बोल खोजें</string>
+    <string name="lyrics_original_title_desc">खोजने से पहले मूल YouTube शीर्षक बहाल करें, ताकि अनुवादित शीर्षक भी मिल सकें।</string>
 </resources>
