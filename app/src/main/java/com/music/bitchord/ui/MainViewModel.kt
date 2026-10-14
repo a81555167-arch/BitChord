@@ -1098,9 +1098,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // the write or the session has expired. If this playlist was
                     // imported before, its local copy is updated; otherwise a
                     // local fallback with the same title is created.
-                    com.music.bitchord.data.spotify.LocalPlaylistStore
-                        .addSongToPlaylist(playlist.title, song)
-                    AddOutcome.ADDED
+                    val localStore = com.music.bitchord.data.spotify.LocalPlaylistStore
+                    val localCopy = localStore.playlists.value.firstOrNull {
+                        it.title.equals(playlist.title, ignoreCase = true)
+                    }
+                    val alreadyLocal = localCopy?.songs?.any { current ->
+                        (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
+                            (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
+                            (current.title.equals(song.title, ignoreCase = true) &&
+                                current.artist.equals(song.artist, ignoreCase = true))
+                    } == true
+                    localStore.addSongToPlaylist(playlist.title, song)
+                    if (alreadyLocal) AddOutcome.ALREADY_THERE else AddOutcome.ADDED
                 },
             )
         }
