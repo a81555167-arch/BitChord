@@ -689,7 +689,7 @@ fun SearchPlayingBars(modifier: Modifier = Modifier) {
                         .width(3.dp)
                         .height(14.dp * height)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White),
+                        .background(MaterialTheme.colorScheme.primary),
                 )
             }
         }
