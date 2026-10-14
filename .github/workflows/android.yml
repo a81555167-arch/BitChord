@@ -1,4 +1,4 @@
-name: Android Release APK
+name: MyBit - Spotify Sync - APK Build
 
 on:
   push:
@@ -52,8 +52,14 @@ jobs:
     - name: Build Prod Release APK
       run: ./gradlew assembleProdRelease
 
+    - name: Name APK for easy identification
+      run: |
+        APK_PATH="$(find app/build/outputs/apk/prod/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+        test -n "$APK_PATH"
+        cp "$APK_PATH" app/build/outputs/apk/prod/release/MyBit-Spotify-Bidirectional-Sync.apk
+
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: bitchord-prod-release
-        path: app/build/outputs/apk/prod/release/*.apk
+        name: MyBit-Spotify-Bidirectional-Sync-APK
+        path: app/build/outputs/apk/prod/release/MyBit-Spotify-Bidirectional-Sync.apk
