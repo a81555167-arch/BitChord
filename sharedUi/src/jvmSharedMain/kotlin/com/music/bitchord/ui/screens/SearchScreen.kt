@@ -107,6 +107,8 @@ fun SearchScreen(
     onSongSwipe: (Song) -> Unit,
     onTopResultPlay: (Song) -> Unit,
     onTopResultPlaylist: (Song) -> Unit,
+    /** Quick add action for searched and typeahead tracks, not only the promoted result. */
+    onTrackPlaylist: ((Song) -> Unit)? = null,
     onBrowseClick: (BrowseItem) -> Unit,
     /**
      * Holding an album or playlist hit rather than tapping it — the same menu
@@ -262,6 +264,7 @@ fun SearchScreen(
                             typeaheadResults = typeaheadResults,
                             onSongClick = { song -> onTopResultPlay(song) },
                             onSongLongPress = onTypeaheadLongPress,
+                            onSongPlaylist = onTrackPlaylist,
                             onBrowseClick = { item ->
                                 onBrowseClick(item)
                             },
@@ -331,18 +334,30 @@ fun SearchScreen(
                         ) { index, row ->
                             when (row) {
                                 is SearchResult.TopTrack -> Unit
-                                is SearchResult.Track -> SongRow(
-                                    song = row.song,
-                                    onClick = {
-                                        onSongClick(tracks, tracks.indexOf(row.song).coerceAtLeast(0))
-                                    },
-                                    onLongPress = { onSongLongPress(row.song) },
-                                    onSwipeToQueue = { onSongSwipe(row.song) },
-                                    isCurrent = row.song.isSameTrackAs(currentSong),
-                                    isPlaying = isPlaying && row.song.isSameTrackAs(currentSong),
-                                    searchPlayingStyle = true,
-                                    activeTint = MaterialTheme.colorScheme.primary,
-                                )
+                                is SearchResult.Track -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                    SongRow(
+                                        song = row.song,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = {
+                                            onSongClick(tracks, tracks.indexOf(row.song).coerceAtLeast(0))
+                                        },
+                                        onLongPress = { onSongLongPress(row.song) },
+                                        onSwipeToQueue = { onSongSwipe(row.song) },
+                                        isCurrent = row.song.isSameTrackAs(currentSong),
+                                        isPlaying = isPlaying && row.song.isSameTrackAs(currentSong),
+                                        searchPlayingStyle = true,
+                                        activeTint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    onTrackPlaylist?.let { addToPlaylist ->
+                                        IconButton(onClick = { addToPlaylist(row.song) }) {
+                                            Icon(
+                                                Icons.AutoMirrored.Rounded.PlaylistAdd,
+                                                contentDescription = stringResource(Res.string.playlist_action),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
                                 is SearchResult.Browse -> BrowseRow(
                                     item = row.item,
                                     onClick = { onBrowseClick(row.item) },
@@ -615,6 +630,7 @@ private fun LazyListScope.searchTypeaheadDropdown(
     typeaheadResults: List<SearchResult>,
     onSongClick: (Song) -> Unit,
     onSongLongPress: ((Song) -> Unit)?,
+    onSongPlaylist: ((Song) -> Unit)?,
     onBrowseClick: (BrowseItem) -> Unit,
     currentSong: Song?,
     isPlaying: Boolean,
@@ -638,6 +654,7 @@ private fun LazyListScope.searchTypeaheadDropdown(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
+                onPlaylist = onSongPlaylist?.let { { it(result.song) } },
                 isCurrent = result.song.isSameTrackAs(currentSong),
                 isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
             )
@@ -650,6 +667,7 @@ private fun LazyListScope.searchTypeaheadDropdown(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
+                onPlaylist = onSongPlaylist?.let { { it(result.song) } },
                 isCurrent = result.song.isSameTrackAs(currentSong),
                 isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
             )
@@ -666,6 +684,7 @@ private fun TypeaheadSongRow(
     song: Song,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)? = null,
+    onPlaylist: (() -> Unit)? = null,
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
 ) {
@@ -706,6 +725,15 @@ private fun TypeaheadSongRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        onPlaylist?.let { addToPlaylist ->
+            IconButton(onClick = addToPlaylist) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    contentDescription = stringResource(Res.string.playlist_action),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
