@@ -262,6 +262,9 @@ fun SongActionsSheet(
             GroupSeparator(palette)
         }
 
+        // YouTube ratings require a YouTube account, but adding a song to a
+        // Spotify or imported local playlist does not. Keep playlist actions
+        // available for searched tracks even when the YouTube account is signed out.
         if (signedIn && !isOffline) {
             ActionRow(
                 icon = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -277,20 +280,28 @@ fun SongActionsSheet(
                 accent = palette.accent,
                 onClick = onToggleDislike,
             )
+            GroupSeparator(palette)
+        }
+
+        if (!isOffline) {
             ActionRow(
                 icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                 label = stringResource(R.string.add_to_playlist),
                 accent = palette.accent,
                 onClick = onAddToPlaylist,
             )
-            onRemoveFromPlaylist?.let {
-                ActionRow(
-                    icon = Icons.Rounded.PlaylistRemove,
-                    label = stringResource(R.string.remove_from_playlist),
-                    accent = palette.accent,
-                    onClick = it,
-                )
-            }
+        }
+        // Local and Spotify playlist removals are valid independently of a
+        // YouTube login, and a local file can still be removed from its list.
+        onRemoveFromPlaylist?.let {
+            ActionRow(
+                icon = Icons.Rounded.PlaylistRemove,
+                label = stringResource(R.string.remove_from_playlist),
+                accent = palette.accent,
+                onClick = it,
+            )
+        }
+        if (!isOffline || onRemoveFromPlaylist != null) {
             GroupSeparator(palette)
         }
 

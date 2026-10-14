@@ -1060,13 +1060,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val localCopy = localStore.playlists.value.firstOrNull {
                 it.title.equals(playlist.title, ignoreCase = true)
             }
-            val alreadyLocal = localCopy?.songs?.any { current ->
-                (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
-                    (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
-                    (current.title.equals(song.title, ignoreCase = true) &&
-                        current.artist.equals(song.artist, ignoreCase = true))
-            } == true
-
             // A stale cache must not veto a real add: a track may have been
             // removed in Spotify since these rows were cached. Only use the
             // duplicate guard when this playlist's cached page is still fresh.
@@ -1109,11 +1102,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     AddOutcome.ADDED
                 },
                 onFailure = {
-                    // Spotify may be offline or reject the session mutation. In
-                    // that case only, keep the track in the matching imported
-                    // local playlist (or create a local fallback if none exists).
-                    localStore.addSongToPlaylist(playlist.title, song)
-                    if (alreadyLocal) AddOutcome.ALREADY_THERE else AddOutcome.ADDED
+                    // Spotify may be offline or reject the session mutation.
+                    // Update the exact imported local counterpart when present;
+                    // only create a fallback playlist if no counterpart exists.
+                    // This avoids accidentally creating a second local playlist
+                    // with the same name as the imported one.
+                    val localResult = if (localCopy != null) {
+                        localStore.addSongToLocalPlaylist(localCopy.browseId, song)
+                    } else {
+                        localStore.addSongToPlaylist(playlist.title, song)
+                        true
+                    }
+                    when (localResult) {
+                        true -> AddOutcome.ADDED
+                        false -> AddOutcome.ALREADY_THERE
+                        null -> AddOutcome.FAILED
+                    }
                 },
             )
         }

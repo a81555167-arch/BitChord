@@ -757,7 +757,10 @@ private fun LazyListScope.recentSearches(
                         entity.title.trim().equals(currentSong.title.trim(), ignoreCase = true) &&
                             (
                                 entity.subtitle.isBlank() ||
-                                    entity.subtitle.trim().equals(currentSong.artist.trim(), ignoreCase = true)
+                                    currentSong.artist.isBlank() ||
+                                    entity.subtitle.trim().equals(currentSong.artist.trim(), ignoreCase = true) ||
+                                    entity.subtitle.trim().contains(currentSong.artist.trim(), ignoreCase = true) ||
+                                    currentSong.artist.trim().contains(entity.subtitle.trim(), ignoreCase = true)
                             )
                     )
                 ),
