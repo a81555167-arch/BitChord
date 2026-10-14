@@ -684,7 +684,9 @@ internal fun CircleGlyph(
             Icon(
                 imageVector = glyph,
                 contentDescription = contentDescription,
-                tint = Color.White,
+                // The active like glyph follows the selected brand accent;
+                // inactive transport/menu glyphs remain white over artwork.
+                tint = if (active) MaterialTheme.colorScheme.primary else Color.White,
                 modifier = Modifier.size(19.dp),
             )
         }
