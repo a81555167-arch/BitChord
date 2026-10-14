@@ -446,7 +446,6 @@ private fun LazyListScope.librarySearchResults(
 private fun TopResultCard(
     song: Song,
     onPlay: () -> Unit,
-    onPlaylist: () -> Unit,
     onLongPress: () -> Unit,
 ) {
     Column(
@@ -501,14 +500,6 @@ private fun TopResultCard(
                 Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(Res.string.play))
-            }
-            OutlinedButton(
-                onClick = onPlaylist,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-            ) {
-                Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(Res.string.playlist_action))
             }
         }
     }
