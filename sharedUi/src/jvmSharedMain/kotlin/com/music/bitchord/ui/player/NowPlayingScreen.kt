@@ -736,8 +736,6 @@ fun NowPlayingScreen(
      */
     windowHeight: Dp,
     modifier: Modifier = Modifier,
-    /** Add the current track to Spotify Liked Songs, then open its playlist picker on the next tap. */
-    onAddToSpotify: (() -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -1872,22 +1870,7 @@ fun NowPlayingScreen(
                                 onOpenArtist = onOpenArtist,
                             )
                         },
-                        lyricStrip = if (syncedLyricsEnabled) {
-                            {
-                                CurrentLyricStrip(
-                                    lines = lyricsTranslation.displayedLyrics,
-                                    trackKey = song.videoId,
-                                    playhead = lyricsPlayhead,
-                                    isPlaying = isPlaying && position.advancing,
-                                    durationMs = durationMs,
-                                    lyricsUnavailable = lyricsUnavailable,
-                                    loadingText = lyricsLoadingText,
-                                    onClick = openLyrics,
-                                )
-                            }
-                        } else {
-                            null
-                        },
+                        lyricStrip = null,
                         scrubber = {
                             PlayerScrubber(
                                 shown = shown,
@@ -3263,14 +3246,6 @@ fun NowPlayingScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                     }
-                    if (onAddToSpotify != null && song.localUri == null) {
-                        CircleGlyph(
-                            icon = BitChordIcons.Star,
-                            contentDescription = "Add to Spotify Liked Songs or choose a playlist",
-                            onClick = onAddToSpotify,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                    }
                     CircleGlyph(
                         icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
                         contentDescription = stringResource(Res.string.more),
@@ -3482,45 +3457,7 @@ fun NowPlayingScreen(
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-            // Current lyric, one line, directly above the scrubber. It stays in
-            // the layout — and stays fully visible — whether or not the queue
-            // is open: dropping it would shorten this block and the controls
-            // under it would jump the moment the queue started sliding in, and
-            // fading it away behind the queue left this the one place in the
-            // player where the current line simply vanished.
-            //
-            // Switched off in Settings it goes entirely, rather than sitting
-            // there saying no lyrics were found: none were looked for. It is
-            // accompanied by a dedicated lyrics button in the bottom row. Its
-            // one-line slot remains, invisibly, so opening lyrics cannot grow
-            // the half-player merely to make room for the source label.
-            if (!lyricsOpen && syncedLyricsEnabled) {
-                CurrentLyricStrip(
-                    lines = lyricsTranslation.displayedLyrics,
-                    trackKey = song.videoId,
-                    playhead = lyricsPlayhead,
-                    isPlaying = isPlaying && position.advancing,
-                    durationMs = durationMs,
-                    lyricsUnavailable = lyricsUnavailable,
-                    loadingText = lyricsLoadingText,
-                    // Still visible over the queue, so still a valid way in:
-                    // opens the same full lyrics panel it always has, closing
-                    // the queue behind it the same way the "Up next" glyph
-                    // closes lyrics behind the queue.
-                    onClick = openLyrics,
-                )
-            }
-            if (!lyricsOpen && !syncedLyricsEnabled) {
-                Text(
-                    text = "\u00A0",
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = 6.dp)
-                        .padding(vertical = 4.dp),
-                )
-            }
+            // Lyrics are shown in the dedicated lyrics panel, not as a duplicate one-line preview.
             if (lyricsOpen) {
                 LyricsStatusWithChange(
                     status = lyricsTranslation.status,
