@@ -61,7 +61,7 @@ object SpotifyLibrary {
     private const val LIBRARY = "973e511ca44261fda7eebac8b653155e7caee3675abb4fb110cc1b8c78b091c3"
     private const val PLAYLIST = "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763"
     private const val SEARCH_TRACKS = "bc1ca2fcd0ba1013a0fc88e6cc4f190af501851e3dafd3e1ef85840297694428"
-    private const val SEARCH_DESKTOP = "75bbf6bfcfdf85b8fc828417bfad92b7cd66bf7f556d85670f4da8292373ebec"
+    private const val SEARCH_DESKTOP = "db61238974d27839a136c9dc02bfdbe3fab7635f21cf85976ebff9a1ee281345"
     // Spotify's Web Player mutations. Unlike api.spotify.com REST endpoints,
     // these use the same session bearer that our embedded Web Player login yields.
     private const val ADD_TO_PLAYLIST = "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"
@@ -457,16 +457,17 @@ object SpotifyLibrary {
             put("includeAudiobooks", true)
             put("includePreReleases", false)
         }
-        runCatching { scoreSearchResults(gql("searchTracks", SEARCH_TRACKS, variables, headers)) }
-            .getOrNull()?.let { return it }
-
         val desktopVariables = buildJsonObject {
             put("searchTerm", term)
             put("offset", 0)
             put("limit", 10)
             put("numberOfTopResults", 10)
         }
+        // Prefer the current Web Player operation hash; try the alternate operation
+        // for clients where Spotify still exposes searchTracks.
         runCatching { scoreSearchResults(gql("searchDesktop", SEARCH_DESKTOP, desktopVariables, headers)) }
+            .getOrNull()?.let { return it }
+        runCatching { scoreSearchResults(gql("searchTracks", SEARCH_TRACKS, variables, headers)) }
             .getOrNull()?.let { return it }
 
         // Last-resort compatibility path for a valid OAuth-backed session.
