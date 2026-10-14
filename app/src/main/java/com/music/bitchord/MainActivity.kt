@@ -918,14 +918,6 @@ private fun BitChordApp(
             )
         }
     }
-    val cachedPlayerMembershipIds = remember(
-        player.song?.spotifyTrackId,
-        player.song?.videoId,
-        pickerPlaylists,
-        spotifyCookie,
-    ) {
-        player.song?.let { viewModel.cachedPlaylistMembershipIds(pickerPlaylists, it) }.orEmpty()
-    }
     LaunchedEffect(
         playlistTarget?.videoId,
         playlistTarget?.spotifyTrackId,
@@ -2301,6 +2293,14 @@ private fun BitChordApp(
                 )
             }
             ?: effectiveSong
+        val cachedPlayerMembershipIds = remember(
+            song.spotifyTrackId,
+            song.videoId,
+            pickerPlaylists,
+            spotifyCookie,
+        ) {
+            viewModel.cachedPlaylistMembershipIds(pickerPlaylists, song)
+        }
         val playedBy = partyState
             .takeIf {
                 it.inParty && it.playback.track?.videoId == displayedSong.videoId
