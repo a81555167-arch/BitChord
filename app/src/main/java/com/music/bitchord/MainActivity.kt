@@ -3029,7 +3029,6 @@ private fun BitChordApp(
                                 )
                             },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
-                            onRemoveFromPlaylist = { browseId, song -> viewModel.removeFromPlaylist(browseId, song) },
                             onSongSwipe = onSongSwipe,
                             onShuffle = { songs ->
                                 // Shuffle goes on first so the queue is built shuffled
