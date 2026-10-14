@@ -1029,9 +1029,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
             val accountKey = AppSettings.spotifySpdcToken.value
                 .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
-            val cachedTracks = accountKey?.let {
-                SpotifyLibraryCache.getTracks(it, spotifyPlaylistId)
-            }
+            // A stale cache must not veto a real add: a track may have been
+            // removed in Spotify since these rows were cached. Only use the
+            // duplicate guard when this playlist's cached page is still fresh.
+            val cachedTracks = accountKey
+                ?.takeIf { SpotifyLibraryCache.areTracksFresh(it, spotifyPlaylistId) }
+                ?.let { SpotifyLibraryCache.getTracks(it, spotifyPlaylistId) }
             if (cachedTracks?.any { track ->
                     (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
                         (track.title.equals(song.title, ignoreCase = true) &&
