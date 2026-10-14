@@ -1052,6 +1052,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
             val accountKey = AppSettings.spotifySpdcToken.value
                 .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+
+            // Mirror the selected destination into its local/imported copy first.
+            // Spotify sync is best-effort: an expired session, denied endpoint or
+            // offline connection must never make the user's tap lose the song.
+            val localStore = com.music.bitchord.data.spotify.LocalPlaylistStore
+            val localCopy = localStore.playlists.value.firstOrNull {
+                it.title.equals(playlist.title, ignoreCase = true)
+            }
+            val alreadyLocal = localCopy?.songs?.any { current ->
+                (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
+                    (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
+                    (current.title.equals(song.title, ignoreCase = true) &&
+                        current.artist.equals(song.artist, ignoreCase = true))
+            } == true
+            localStore.addSongToPlaylist(playlist.title, song)
+
             // A stale cache must not veto a real add: a track may have been
             // removed in Spotify since these rows were cached. Only use the
             // duplicate guard when this playlist's cached page is still fresh.
@@ -1063,7 +1079,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         (track.title.equals(song.title, ignoreCase = true) &&
                             track.artist.equals(song.artist, ignoreCase = true))
                 } == true
-            ) return AddOutcome.ALREADY_THERE
+            ) return if (alreadyLocal) AddOutcome.ALREADY_THERE else AddOutcome.ADDED
 
             return runCatching {
                 if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
@@ -1094,21 +1110,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     AddOutcome.ADDED
                 },
                 onFailure = {
-                    // Keep the requested addition on-device when Spotify rejects
-                    // the write or the session has expired. If this playlist was
-                    // imported before, its local copy is updated; otherwise a
-                    // local fallback with the same title is created.
-                    val localStore = com.music.bitchord.data.spotify.LocalPlaylistStore
-                    val localCopy = localStore.playlists.value.firstOrNull {
-                        it.title.equals(playlist.title, ignoreCase = true)
-                    }
-                    val alreadyLocal = localCopy?.songs?.any { current ->
-                        (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
-                            (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
-                            (current.title.equals(song.title, ignoreCase = true) &&
-                                current.artist.equals(song.artist, ignoreCase = true))
-                    } == true
-                    localStore.addSongToPlaylist(playlist.title, song)
                     if (alreadyLocal) AddOutcome.ALREADY_THERE else AddOutcome.ADDED
                 },
             )
