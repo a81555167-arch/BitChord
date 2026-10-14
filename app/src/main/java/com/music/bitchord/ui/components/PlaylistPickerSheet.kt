@@ -92,11 +92,17 @@ fun PlaylistPickerSheet(
     modifier: Modifier = Modifier,
     song: Song? = null,
     startCreating: Boolean = false,
+    manageSelection: Boolean = false,
+    initialSelectedPlaylistIds: Set<String> = emptySet(),
+    selectionLoading: Boolean = false,
+    onApplySelection: ((added: List<UserPlaylist>, removed: List<UserPlaylist>) -> Unit)? = null,
 ) {
     var creating by remember { mutableStateOf(startCreating) }
     // By id rather than by value: the list is re-fetched under an open sheet,
     // and a refreshed row must stay ticked.
-    var selected by remember { mutableStateOf(emptySet<String>()) }
+    var selected by remember(song?.videoId, manageSelection, initialSelectedPlaylistIds) {
+        mutableStateOf(if (manageSelection) initialSelectedPlaylistIds else emptySet())
+    }
 
     if (creating) {
         NewPlaylistForm(
@@ -115,8 +121,13 @@ fun PlaylistPickerSheet(
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
         }
         SheetHeading(
-            stringResource(if (song != null) R.string.add_to_playlist else R.string.your_playlists)
-                .uppercase(Locale.getDefault()),
+            stringResource(
+                when {
+                    manageSelection -> R.string.your_playlists
+                    song != null -> R.string.add_to_playlist
+                    else -> R.string.your_playlists
+                },
+            ).uppercase(Locale.getDefault()),
         )
 
         ActionRow(
@@ -162,21 +173,47 @@ fun PlaylistPickerSheet(
                             playlist = playlist,
                             selected = ticked,
                             onClick = {
-                                selected = if (ticked) selected - playlist.playlistId else selected + playlist.playlistId
+                                if (!selectionLoading) {
+                                    selected = if (ticked) selected - playlist.playlistId else selected + playlist.playlistId
+                                }
                             },
                         )
                     }
                 }
+                if (selectionLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 Button(
-                    onClick = { onAdd(playlists.filter { it.playlistId in selected }) },
-                    enabled = selected.isNotEmpty(),
+                    onClick = {
+                        if (manageSelection) {
+                            onApplySelection?.invoke(
+                                playlists.filter { it.playlistId in selected && it.playlistId !in initialSelectedPlaylistIds },
+                                playlists.filter { it.playlistId in initialSelectedPlaylistIds && it.playlistId !in selected },
+                            )
+                        } else {
+                            onAdd(playlists.filter { it.playlistId in selected })
+                        }
+                    },
+                    enabled = !selectionLoading && if (manageSelection) {
+                        selected != initialSelectedPlaylistIds
+                    } else {
+                        selected.isNotEmpty()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 22.dp),
                 ) {
                     Text(
-                        if (selected.isEmpty()) {
+                        if (manageSelection) {
+                            stringResource(R.string.save)
+                        } else if (selected.isEmpty()) {
                             stringResource(R.string.add_to_playlist)
                         } else {
                             pluralStringResource(R.plurals.add_to_playlists_count, selected.size, selected.size)
