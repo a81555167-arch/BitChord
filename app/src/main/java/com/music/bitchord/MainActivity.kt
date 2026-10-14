@@ -939,6 +939,16 @@ private fun BitChordApp(
                 playlistMembershipIds = found
                 playlistMembershipSongKey = target.spotifyTrackId ?: target.videoId
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            // A failed membership lookup must not take down the app or strand
+            // the sheet in its loading state. Show what is safely cached instead.
+            android.util.Log.w("PlaylistSync", "Could not load playlist membership", failure)
+            if (playlistTarget?.videoId == target.videoId && manageTrackPlaylists) {
+                playlistMembershipIds = viewModel.cachedPlaylistMembershipIds(pickerPlaylists, target)
+                playlistMembershipSongKey = target.spotifyTrackId ?: target.videoId
+            }
         } finally {
             playlistMembershipLoading = false
         }
@@ -4323,12 +4333,11 @@ private fun BitChordApp(
                 },
                 onAddToPlaylist = {
                     songActions = null
-                    // Open the same membership-aware picker used by the player heart:
-                    // existing destinations are checked and can be toggled off.
-                    manageTrackPlaylists = true
-                    playlistMembershipIds = emptySet()
-                    playlistMembershipSongKey = null
-                    playlistMembershipLoading = true
+                    // Keep the menu's Add to playlist action on the original,
+                    // direct-add flow. Membership editing remains a separate
+                    // player-heart action and must not block adding search hits.
+                    manageTrackPlaylists = false
+                    playlistMembershipLoading = false
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 },
