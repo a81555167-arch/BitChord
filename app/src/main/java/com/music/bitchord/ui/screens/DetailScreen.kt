@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.HorizontalDivider
@@ -286,6 +287,8 @@ fun DetailScreen(
     onLoadReleaseLibrary: ((String) -> Unit)? = null,
     /** Null where saving isn't offered — a guest. */
     onToggleReleaseLibrary: ((String) -> Unit)? = null,
+    /** Direct removal affordance on playlist rows; null on pages that cannot be edited. */
+    onRemoveFromPlaylist: ((String, Song) -> Unit)? = null,
     /**
      * How the track list is ordered — the release's own running order by
      * default, or alphabetical. Owned by the caller rather than this page
@@ -613,28 +616,44 @@ fun DetailScreen(
                     ) { position, entry ->
                         val song = entry.value
                         val isCurrent = song.isSameTrackAs(currentSong)
-                        SongRow(
-                            song = if (numbered) {
-                                song
-                            } else {
-                                song.copy(thumbnailUrl = song.thumbnailUrl ?: page.thumbnailUrl)
-                            },
-                            onClick = {
-                                onSongClick(queue, position)
-                            },
-                            onLongPress = { onSongLongPress(song) },
-                            onSwipeToQueue = { onSongSwipe(song) },
-                            rowBackground = Color.Transparent,
-                            // The track's place on the release, not its place in
-                            // what the filter — or a sort — left standing.
-                            trackNumber = originalTrackNumbers[song.videoId].takeIf { numbered },
-                            subtitleColor = palette.onBackgroundVariant,
-                            downloadedTint = downloadedTint,
-                            isCurrent = isCurrent,
-                            isPlaying = isCurrent && isPlaying,
-                            activeTint = palette.accent,
-                            searchPlayingStyle = true,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SongRow(
+                                song = if (numbered) {
+                                    song
+                                } else {
+                                    song.copy(thumbnailUrl = song.thumbnailUrl ?: page.thumbnailUrl)
+                                },
+                                modifier = if (page.type == BrowseType.PLAYLIST && onRemoveFromPlaylist != null) {
+                                    Modifier.weight(1f)
+                                } else {
+                                    Modifier.fillMaxWidth()
+                                },
+                                onClick = {
+                                    onSongClick(queue, position)
+                                },
+                                onLongPress = { onSongLongPress(song) },
+                                onSwipeToQueue = { onSongSwipe(song) },
+                                rowBackground = Color.Transparent,
+                                // The track's place on the release, not its place in
+                                // what the filter — or a sort — left standing.
+                                trackNumber = originalTrackNumbers[song.videoId].takeIf { numbered },
+                                subtitleColor = palette.onBackgroundVariant,
+                                downloadedTint = downloadedTint,
+                                isCurrent = isCurrent,
+                                isPlaying = isCurrent && isPlaying,
+                                activeTint = palette.accent,
+                                searchPlayingStyle = true,
+                            )
+                            if (page.type == BrowseType.PLAYLIST && onRemoveFromPlaylist != null) {
+                                IconButton(onClick = { onRemoveFromPlaylist(page.browseId, song) }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlaylistRemove,
+                                        contentDescription = stringResource(R.string.remove_from_playlist),
+                                        tint = palette.onBackground,
+                                    )
+                                }
+                            }
+                        }
                         if (position < matches.lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(
