@@ -6,15 +6,12 @@ import kotlinx.coroutines.launch
 import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.RenderProcessGoneDetail
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.core.net.toUri
@@ -33,8 +30,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import org.jetbrains.compose.resources.painterResource
 import com.music.bitchord.sharedui.resources.spotify_logo
 import com.music.bitchord.sharedui.resources.Res
@@ -49,9 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import android.widget.Toast
 import com.music.bitchord.R
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.spotify.SpotifyLibrary
@@ -108,11 +100,6 @@ fun SpotifyLibraryScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var refreshCounter by remember { mutableIntStateOf(0) }
     var lastHandledRefresh by remember { mutableIntStateOf(0) }
-    var showCreatePlaylist by remember { mutableStateOf(false) }
-    var newPlaylistName by remember { mutableStateOf("") }
-    var creatingPlaylist by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
     BackHandler(enabled = showLogin) { showLogin = false }
 val cacheAccountKey = remember(cookie) {
     cookie.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
@@ -183,56 +170,6 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         return
     }
 
-    if (showCreatePlaylist) {
-        AlertDialog(
-            onDismissRequest = { if (!creatingPlaylist) showCreatePlaylist = false },
-            title = { Text("Create Spotify playlist") },
-            text = {
-                OutlinedTextField(
-                    value = newPlaylistName,
-                    onValueChange = { newPlaylistName = it },
-                    label = { Text("Playlist name") },
-                    singleLine = true,
-                    enabled = !creatingPlaylist,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = newPlaylistName.isNotBlank() && !creatingPlaylist,
-                    onClick = {
-                        val name = newPlaylistName.trim()
-                        scope.launch {
-                            creatingPlaylist = true
-                            runCatching { SpotifyLibrary.createPlaylist(name) }
-                                .onSuccess {
-                                    cacheAccountKey?.let(SpotifyLibraryCache::invalidatePlaylists)
-                                    newPlaylistName = ""
-                                    showCreatePlaylist = false
-                                    refreshCounter++
-                                }
-                                .onFailure { failure ->
-                                    Toast.makeText(
-                                        context,
-                                        failure.message ?: "Spotify could not create this playlist",
-                                        Toast.LENGTH_LONG,
-                                    ).show()
-                                }
-                            creatingPlaylist = false
-                        }
-                    },
-                ) {
-                    Text(if (creatingPlaylist) "Creating…" else "Create")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !creatingPlaylist,
-                    onClick = { showCreatePlaylist = false },
-                ) { Text("Cancel") }
-            },
-        )
-    }
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -255,12 +192,6 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(
-                    onClick = { showCreatePlaylist = true },
-                    enabled = cookie.isNotBlank() && !loading && !creatingPlaylist,
-                ) {
-                    Text("New playlist")
-                }
                 TextButton(
                     onClick = {
                         cacheAccountKey?.let { accountKey ->
@@ -367,12 +298,7 @@ private val SPOTIFY_COOKIE_URLS = listOf(
 )
 
 private val LOGIN_HOST_SUFFIXES = listOf(
-    "spotify.com", "spotifycdn.com", "scdn.co",
-    "google.com", "gstatic.com", "recaptcha.net",
-    "facebook.com", "apple.com",
-    // Spotify can hand login verification to third-party CAPTCHA providers.
-    "arkoselabs.com", "funcaptcha.com", "hcaptcha.com",
-    "captcha-delivery.com", "cloudflare.com",
+    "spotify.com", "scdn.co", "google.com", "gstatic.com", "facebook.com", "apple.com",
 )
 
 private fun hostMatches(uri: Uri?, suffixes: List<String>): Boolean {
@@ -414,8 +340,6 @@ private fun SpotifyLogin(
     modifier: Modifier = Modifier,
 ) {
     var sent by remember { mutableStateOf(false) }
-    var loginGeneration by remember { mutableIntStateOf(0) }
-    key(loginGeneration) {
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
@@ -439,63 +363,25 @@ private fun SpotifyLogin(
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webViewClient = object : WebViewClient() {
-                    private val mainHandler = Handler(Looper.getMainLooper())
-
-                    // Keep HTTPS redirects inside the login WebView. Spotify's
-                    // sign-in flow can use new verification hosts, so a fixed host
-                    // allowlist can interrupt authentication and leave this page blank.
-                    // Block only insecure navigation.
+                    // Spotify's own pages and the identity providers its sign-in
+                    // hands off to; anything else is not part of logging in.
                     override fun shouldOverrideUrlLoading(
                         view: WebView,
                         request: WebResourceRequest,
-                    ): Boolean = request.url.scheme != "https"
-
-                    override fun onRenderProcessGone(
-                        view: WebView,
-                        detail: RenderProcessGoneDetail,
-                    ): Boolean {
-                        // A dead Chromium renderer must not take BitChord down with it.
-                        // Recreate the login WebView on the next Compose frame.
-                        sent = false
-                        loginGeneration += 1
-                        return true
-                    }
+                    ): Boolean = !isLoginHost(request.url)
 
                     override fun onPageFinished(view: WebView, url: String?) {
                         if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
-                        if (!sent && url?.startsWith("https://open.spotify.com") == true) {
-                            // Spotify may finish the redirect before WebView's cookie
-                            // jar exposes the new HttpOnly sp_dc cookie. Retry briefly
-                            // on the main thread instead of making the user sign in again.
-                            captureSessionCookie(view, 0)
-                        }
-                    }
-
-                    private fun captureSessionCookie(view: WebView, attempt: Int) {
-                        if (sent || !view.url.orEmpty().startsWith("https://open.spotify.com")) return
-                        val raw = CookieManager.getInstance()
-                            .getCookie("https://open.spotify.com")
-                        val token = raw.orEmpty().split(";")
+                        if (sent || url?.startsWith("https://open.spotify.com") != true) return
+                        val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
+                        val token = raw.split(";")
                             .map { it.trim() }
                             .firstOrNull { it.startsWith("sp_dc=") }
                             ?.substringAfter("=")
                             ?.takeIf { it.isNotBlank() }
-
-                        if (token != null) {
-                            sent = true
-                            mainHandler.removeCallbacksAndMessages(null)
-                            onConnected(token)
-                            return
-                        }
-
-                        // 20 attempts × 500 ms gives the redirect and cookie jar
-                        // up to ten seconds to settle. Stop if the user navigates away.
-                        if (attempt < 20) {
-                            mainHandler.postDelayed(
-                                { captureSessionCookie(view, attempt + 1) },
-                                500L,
-                            )
-                        }
+                            ?: return
+                        sent = true
+                        onConnected(token)
                     }
                 }
                 loadUrl(LOGIN_URL)
@@ -503,8 +389,8 @@ private fun SpotifyLogin(
         },
         onRelease = { it.destroy() },
     )
-    }
 }
+
 private fun spotifyCacheAccountKey(cookie: String): String =
     MessageDigest.getInstance("SHA-256")
         .digest(cookie.toByteArray(Charsets.UTF_8))
