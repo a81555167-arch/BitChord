@@ -115,11 +115,6 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         error = null
         return@LaunchedEffect
     }
-    if (showSpotifyHome) {
-        loading = false
-        return@LaunchedEffect
-    }
-
     // Show saved playlists immediately. A fresh cache is a complete answer:
     // opening this tab repeatedly should not spend mobile data on the same pages.
     // A deliberate refresh bypasses the TTL so external Spotify edits can be pulled in.
