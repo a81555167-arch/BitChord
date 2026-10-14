@@ -69,15 +69,12 @@ private const val SURFACE_OPACITY = 0.4f
 /**
  * Resolution fraction the glass surface records and processes its backdrop at.
  *
- * A third, which is what Echo's `glassResolutionScale` comes to at this blur
- * radius. It was briefly raised to a half while the sharp-text bug was being
- * chased — wrongly, as it turned out: the cause was a transparent backdrop, not
- * the resample (see MainActivity's `paintBackdrop`). A third is nine times fewer
- * pixels than full resolution through the colour matrix, the blur and the lens
- * shader, on as many as six surfaces at once in the middle of a fold, and the
- * blur is what hides the upscale.
+ * A quarter-resolution backdrop keeps the same liquid-glass treatment while
+ * cutting the pixels processed by the colour matrix, blur and lens shader to
+ * one sixteenth of full resolution. That matters most mid-fold, when shared
+ * transitions can briefly keep several glass surfaces alive together.
  */
-private const val GLASS_RESOLUTION_SCALE = 0.33f
+private const val GLASS_RESOLUTION_SCALE = 0.25f
 
 /**
  * The hairline along a bar's edge, and what stands in for the glass rim
