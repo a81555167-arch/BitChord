@@ -126,7 +126,7 @@ fun GlassNavBar(
 
     // A factory, not a value — see the note in FloatingTabBar's header. Each of
     // the three surfaces gets its own glass modifier and so its own shape cache.
-    val glassSurface: @Composable () -> Modifier = { Modifier.liquidGlass(shape = pillShape) }
+    val glassSurface: @Composable () -> Modifier = remember(pillShape) { { Modifier.liquidGlass(shape = pillShape) } }
 
     FloatingTabBar(
         selectedTabKey = selectedIndex,
