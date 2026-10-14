@@ -1252,16 +1252,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 AddOutcome.ADDED
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
-                if (accountKey != null) {
-                    if (optimisticCacheUpdated && cachedTracksBeforeWrite != null) {
-                        SpotifyLibraryCache.saveTracks(
-                            accountKey,
-                            spotifyPlaylistId,
-                            cachedTracksBeforeWrite,
-                        )
-                    } else {
-                        SpotifyLibraryCache.invalidateTracks(accountKey, spotifyPlaylistId)
-                    }
+                if (accountKey != null && optimisticCacheUpdated && cachedTracksBeforeWrite != null) {
+                    // Roll back only the optimistic edit. If the cache wasn't
+                    // changed, preserve its previous offline contents as-is.
+                    SpotifyLibraryCache.saveTracks(
+                        accountKey,
+                        spotifyPlaylistId,
+                        cachedTracksBeforeWrite,
+                    )
                 }
                 android.util.Log.w(
                     "SpotifySync",
