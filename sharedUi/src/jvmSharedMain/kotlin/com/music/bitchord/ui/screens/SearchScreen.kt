@@ -264,7 +264,6 @@ fun SearchScreen(
                             typeaheadResults = typeaheadResults,
                             onSongClick = { song -> onTopResultPlay(song) },
                             onSongLongPress = onTypeaheadLongPress,
-                            onSongPlaylist = onTrackPlaylist,
                             onBrowseClick = { item ->
                                 onBrowseClick(item)
                             },
@@ -612,7 +611,6 @@ private fun LazyListScope.searchTypeaheadDropdown(
     typeaheadResults: List<SearchResult>,
     onSongClick: (Song) -> Unit,
     onSongLongPress: ((Song) -> Unit)?,
-    onSongPlaylist: ((Song) -> Unit)?,
     onBrowseClick: (BrowseItem) -> Unit,
     currentSong: Song?,
     isPlaying: Boolean,
@@ -648,7 +646,6 @@ private fun LazyListScope.searchTypeaheadDropdown(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
-                onPlaylist = onSongPlaylist?.let { { it(result.song) } },
                 isCurrent = result.song.isSameTrackAs(currentSong),
                 isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
             )
