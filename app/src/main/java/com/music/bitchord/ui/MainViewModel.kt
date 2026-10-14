@@ -724,7 +724,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleSpotifyLike(trackId: String, song: Song) {
         val wasLiked = trackId in _spotifyLikedTrackIds.value
         viewModelScope.launch {
-            runCatching { SpotifyLibrary.setLiked(trackId, liked = !wasLiked) }
+            runCatching {
+                SpotifyLibrary.setLikedTrack(
+                    spotifyTrackId = trackId,
+                    title = song.title,
+                    artist = song.artist,
+                    liked = !wasLiked,
+                )
+            }
                 .onSuccess {
                     _spotifyLikedTrackIds.update { current ->
                         if (wasLiked) current - trackId else current + trackId
