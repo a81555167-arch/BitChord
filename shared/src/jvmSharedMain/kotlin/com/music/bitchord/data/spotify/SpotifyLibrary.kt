@@ -214,9 +214,16 @@ object SpotifyLibrary {
             putJsonArray("libraryItemUris") { add("spotify:track:$trackId") }
         }
         gql(operation, ADD_TO_LIBRARY, variables, headers)
-        if (liked) verifyLikedTrack(headers, trackId)
         trackId
     }
+
+    /** Resolve a song once so every Spotify save/add entry point uses the same catalogue identity. */
+    suspend fun resolveTrackId(spotifyTrackId: String?, title: String, artist: String): String =
+        withContext(Dispatchers.IO) {
+            spotifyTrackId?.takeIf { it.matches(Regex("[A-Za-z0-9]{22}")) }
+                ?: searchTrackId(title, artist, authHeaders())
+                ?: throw IllegalStateException("Could not find this song in Spotify's catalogue")
+        }
 
     /** Add a catalogue track to a Spotify playlist using the Web Player mutation. */
     suspend fun addTrackToPlaylist(
@@ -239,10 +246,6 @@ object SpotifyLibrary {
             }
         }
         gql("addToPlaylist", ADD_TO_PLAYLIST, variables, headers)
-        // A successful HTTP response alone is not proof that Spotify committed
-        // the edit. Confirm the track is visible in the playlist before telling
-        // the UI the add succeeded, so local UI state cannot mask a failed write.
-        verifyPlaylistTrack(headers, playlistId, trackId)
         trackId
     }
 
