@@ -100,8 +100,16 @@ fun PlaylistPickerSheet(
     var creating by remember { mutableStateOf(startCreating) }
     // By id rather than by value: the list is re-fetched under an open sheet,
     // and a refreshed row must stay ticked.
-    var selected by remember(song?.videoId, manageSelection, initialSelectedPlaylistIds) {
+    var selected by remember(song?.videoId, manageSelection) {
         mutableStateOf(if (manageSelection) initialSelectedPlaylistIds else emptySet())
+    }
+    // Membership checks may take a moment (especially for remote playlists).
+    // Merge their result when it arrives without resetting any taps the user
+    // already made while the sheet was visible.
+    LaunchedEffect(manageSelection, selectionLoading, initialSelectedPlaylistIds) {
+        if (manageSelection && !selectionLoading) {
+            selected = selected + initialSelectedPlaylistIds
+        }
     }
 
     if (creating) {
@@ -173,9 +181,7 @@ fun PlaylistPickerSheet(
                             playlist = playlist,
                             selected = ticked,
                             onClick = {
-                                if (!selectionLoading) {
-                                    selected = if (ticked) selected - playlist.playlistId else selected + playlist.playlistId
-                                }
+                                selected = if (ticked) selected - playlist.playlistId else selected + playlist.playlistId
                             },
                         )
                     }
