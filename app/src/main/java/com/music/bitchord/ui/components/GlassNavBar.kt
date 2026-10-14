@@ -103,9 +103,9 @@ fun GlassNavBar(
     pull: MiniPlayerPull? = null,
     modifier: Modifier = Modifier,
 ) {
-    // Held for the same reason [tabs] is. The glass factory below closes over
-    // this shape, and a fresh RoundedCornerShape each pass means a fresh factory
-    // lambda, which the tab bar sees as a changed argument and recomposes on.
+    // Keep both the shape and the factory stable across recompositions. The
+    // factory is passed into the tab bar; recreating it on every pass would make
+    // the tab bar treat its arguments as changed during a fold.
     val pillShape = remember { RoundedCornerShape(percent = 50) }
     val contentColor = glassContentColor()
     val selectedColor = contentColor
