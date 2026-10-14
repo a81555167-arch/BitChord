@@ -762,21 +762,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 .onFailure { failure ->
-                    if (!wasLiked) {
-                        val local = com.music.bitchord.data.spotify.LocalPlaylistStore
-                            .addSongToPlaylist("Liked Songs", song)
-                        Toast.makeText(
-                            getApplication(),
-                            "Spotify could not update Liked Songs. Saved locally to ${local.title}.",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    } else {
-                        Toast.makeText(
-                            getApplication(),
-                            failure.message ?: "Spotify could not update Liked Songs",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
+                    // Never create a device-only "Liked Songs" twin when the
+                    // selected destination is Spotify. Keep the user's library
+                    // unambiguous and report the failed Spotify mutation.
+                    Toast.makeText(
+                        getApplication(),
+                        failure.message ?: "Spotify could not update Liked Songs",
+                        Toast.LENGTH_LONG,
+                    ).show()
                 }
         }
     }
@@ -1036,6 +1029,73 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
+
+    /**
+     * Finds the playlists that currently contain [song]. Reuses fresh Spotify
+     * track caches and refreshes stale/missing ones only when the user opens
+     * the player's playlist manager. At most three remote playlist reads run
+     * together, so large libraries don't fan out into an uncontrolled burst.
+     */
+    suspend fun playlistMembershipIds(
+        playlists: List<UserPlaylist>,
+        song: Song,
+    ): Set<String> = coroutineScope {
+        val accountKey = AppSettings.spotifySpdcToken.value
+            .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+        val semaphore = Semaphore(3)
+
+        playlists.map { playlist ->
+            async {
+                semaphore.withPermit {
+                    val contains = runCatching {
+                        when {
+                            playlist.playlistId.startsWith("spotify:") -> {
+                                val spotifyId = playlist.playlistId.removePrefix("spotify:")
+                                val cached = accountKey?.let {
+                                    SpotifyLibraryCache.getTracks(it, spotifyId)
+                                }
+                                val tracks = if (
+                                    cached != null && accountKey != null &&
+                                    SpotifyLibraryCache.areTracksFresh(accountKey, spotifyId)
+                                ) {
+                                    cached
+                                } else {
+                                    runCatching { SpotifyLibrary.tracks(spotifyId) }
+                                        .onSuccess { fresh ->
+                                            if (accountKey != null) {
+                                                SpotifyLibraryCache.saveTracks(accountKey, spotifyId, fresh)
+                                            }
+                                        }
+                                        .getOrElse { cached.orEmpty() }
+                                }
+                                tracks.any { track ->
+                                    (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
+                                        (track.title.equals(song.title, ignoreCase = true) &&
+                                            track.artist.equals(song.artist, ignoreCase = true))
+                                }
+                            }
+                            playlist.playlistId.startsWith("local:playlist:") -> {
+                                com.music.bitchord.data.spotify.LocalPlaylistStore
+                                    .getPlaylist(playlist.playlistId)?.songs.orEmpty()
+                                    .any { candidate -> samePlaylistSong(candidate, song) }
+                            }
+                            else -> {
+                                YtMusicRepository.allSongs(playlist.browseId).getOrNull().orEmpty()
+                                    .any { candidate -> samePlaylistSong(candidate, song) }
+                            }
+                        }
+                    }.getOrDefault(false)
+                    playlist.playlistId.takeIf { contains }
+                }
+            }
+        }.mapNotNull { it.await() }.toSet()
+    }
+
+    private fun samePlaylistSong(candidate: Song, target: Song): Boolean =
+        (target.spotifyTrackId != null && candidate.spotifyTrackId == target.spotifyTrackId) ||
+            (target.videoId.isNotBlank() && candidate.videoId == target.videoId) ||
+            (candidate.title.equals(target.title, ignoreCase = true) &&
+                candidate.artist.equals(target.artist, ignoreCase = true))
 
     private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
         if (playlist.playlistId.startsWith("local:playlist:")) {
