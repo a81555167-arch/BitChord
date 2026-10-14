@@ -194,6 +194,7 @@ object SpotifyLibrary {
             putJsonArray("libraryItemUris") { add("spotify:track:$trackId") }
         }
         gql(operation, ADD_TO_LIBRARY, variables, headers)
+        Unit
     }
 
     /** Resolve a BitChord song to Spotify's catalogue when needed, then save it to Liked Songs. */
