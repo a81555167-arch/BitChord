@@ -4311,6 +4311,12 @@ private fun BitChordApp(
                     playlistTarget = song
                 },
                 onRemoveFromPlaylist = when {
+                    !fromPlayer && currentBrowseId?.startsWith("local:playlist:") == true -> {
+                        {
+                            songActions = null
+                            currentBrowseId.let { viewModel.removeFromPlaylist(it, song) }
+                        }
+                    }
                     spotifyEditable -> {
                         {
                             songActions = null
