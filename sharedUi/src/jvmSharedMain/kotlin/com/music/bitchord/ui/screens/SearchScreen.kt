@@ -106,9 +106,6 @@ fun SearchScreen(
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
     onTopResultPlay: (Song) -> Unit,
-    onTopResultPlaylist: (Song) -> Unit,
-    /** Quick add action for searched and typeahead tracks, not only the promoted result. */
-    onTrackPlaylist: ((Song) -> Unit)? = null,
     onBrowseClick: (BrowseItem) -> Unit,
     /**
      * Holding an album or playlist hit rather than tapping it — the same menu
