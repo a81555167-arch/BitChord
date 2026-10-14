@@ -1250,6 +1250,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * row out from under the reader rather than waiting for a re-fetch.
      */
     fun removeFromPlaylist(browseId: String, song: Song) {
+        if (browseId.startsWith("local:playlist:")) {
+            val updatedPlaylist = com.music.bitchord.data.spotify.LocalPlaylistStore
+                .removeSongFromPlaylist(browseId, song) ?: return
+            _detailStack.value = _detailStack.value.map { page ->
+                if (page.browseId == browseId) {
+                    page.copy(songs = UiState.Success(updatedPlaylist.songs))
+                } else {
+                    page
+                }
+            }
+            return
+        }
         if (browseId.startsWith(SPOTIFY_PAGE_PREFIX)) {
             val spotifyPlaylistId = browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
             val spotifyTrackId = song.spotifyTrackId ?: return
