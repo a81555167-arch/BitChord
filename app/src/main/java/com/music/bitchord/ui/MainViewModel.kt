@@ -767,7 +767,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             .addSongToPlaylist("Liked Songs", song)
                         Toast.makeText(
                             getApplication(),
-                            "Spotify could not update Liked Songs. Saved locally to \\"${local.title}\\".",
+                            "Spotify could not update Liked Songs. Saved locally to ${local.title}.",
                             Toast.LENGTH_LONG,
                         ).show()
                     } else {
