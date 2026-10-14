@@ -2322,47 +2322,53 @@ private fun BitChordApp(
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
-            // Keep the active library authoritative: Spotify-imported tracks
-            // must read and write Spotify Liked Songs, while ordinary YouTube
-            // tracks use the signed-in YouTube Music library.
-            likeStatus = if (song.spotifyTrackId != null) {
+            // The heart reflects both the account's library and the local
+            // fallback. That keeps its second tap useful even when the account
+            // is signed out or Spotify refused the first write.
+            likeStatus = run {
                 val locallyLiked = localPlaylists.any { playlist ->
                     playlist.title.equals("Liked Songs", ignoreCase = true) &&
                         playlist.songs.any { local ->
-                            local.spotifyTrackId == song.spotifyTrackId ||
+                            (song.spotifyTrackId != null && local.spotifyTrackId == song.spotifyTrackId) ||
+                                (song.videoId.isNotBlank() && local.videoId == song.videoId) ||
                                 (local.title.equals(song.title, ignoreCase = true) &&
                                     local.artist.equals(song.artist, ignoreCase = true))
                         }
                 }
-                if (song.spotifyTrackId in spotifyLikedIds || locallyLiked) LikeStatus.LIKE
+                val accountLiked = if (song.spotifyTrackId != null) {
+                    song.spotifyTrackId in spotifyLikedIds
+                } else {
+                    likeStatuses[song.videoId] == LikeStatus.LIKE
+                }
+                if (accountLiked || locallyLiked) LikeStatus.LIKE
                 else LikeStatus.INDIFFERENT
-            } else {
-                likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT
             },
             onToggleLike = {
                 val spotifyTrackId = song.spotifyTrackId
+                val locallyLiked = localPlaylists.any { playlist ->
+                    playlist.title.equals("Liked Songs", ignoreCase = true) &&
+                        playlist.songs.any { local ->
+                            (spotifyTrackId != null && local.spotifyTrackId == spotifyTrackId) ||
+                                (song.videoId.isNotBlank() && local.videoId == song.videoId) ||
+                                (local.title.equals(song.title, ignoreCase = true) &&
+                                    local.artist.equals(song.artist, ignoreCase = true))
+                        }
+                }
                 if (spotifyTrackId != null) {
-                    val locallyLiked = localPlaylists.any { playlist ->
-                        playlist.title.equals("Liked Songs", ignoreCase = true) &&
-                            playlist.songs.any { local ->
-                                local.spotifyTrackId == spotifyTrackId ||
-                                    (local.title.equals(song.title, ignoreCase = true) &&
-                                        local.artist.equals(song.artist, ignoreCase = true))
-                            }
-                    }
                     if (spotifyTrackId in spotifyLikedIds || locallyLiked) {
                         viewModel.loadPlaylists()
                         playlistTarget = song
                     } else {
-                        // Keep a durable local copy before the optional Spotify sync.
-                        com.music.bitchord.data.spotify.LocalPlaylistStore
-                            .addSongToPlaylist("Liked Songs", song)
+                        // The view model keeps a local copy only if Spotify's
+                        // mutation fails, avoiding a shadow playlist on success.
                         viewModel.toggleSpotifyLike(spotifyTrackId, song)
                     }
-                } else if (likeStatuses[song.videoId] == LikeStatus.LIKE) {
+                } else if (likeStatuses[song.videoId] == LikeStatus.LIKE || locallyLiked) {
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 } else {
+                    // Works for guests too: the local copy is durable even if
+                    // YouTube Music cannot accept the account-side like.
                     com.music.bitchord.data.spotify.LocalPlaylistStore
                         .addSongToPlaylist("Liked Songs", song)
                     viewModel.toggleLike(song.videoId)
