@@ -1053,13 +1053,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val accountKey = AppSettings.spotifySpdcToken.value
                 .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
 
-            // A local copy is a fallback, not a shadow of every successful Spotify
-            // edit. Find an imported/local counterpart by title, but do not create
-            // it unless Spotify actually refuses the write.
-            val localStore = com.music.bitchord.data.spotify.LocalPlaylistStore
-            val localCopy = localStore.playlists.value.firstOrNull {
-                it.title.equals(playlist.title, ignoreCase = true)
-            }
+            // Spotify destinations stay Spotify destinations. Never create a
+            // device-only playlist as a fallback for a failed Spotify write.
             // A stale cache must not veto a real add: a track may have been
             // removed in Spotify since these rows were cached. Only use the
             // duplicate guard when this playlist's cached page is still fresh.
