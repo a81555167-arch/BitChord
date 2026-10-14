@@ -1026,12 +1026,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     !it.playlistId.startsWith("local:playlist:")
             } && !requireSignIn()) return
         viewModelScope.launch {
-            val outcomes = playlists.map { addOne(it, song) }
-            onResult(
-                outcomes.count { it == AddOutcome.ADDED },
-                outcomes.count { it == AddOutcome.ALREADY_THERE },
-                outcomes.count { it == AddOutcome.FAILED },
-            )
+            // One bad destination must never crash the whole picker operation or
+            // prevent the remaining selected playlists from being processed.
+            val outcomes = playlists.map { playlist ->
+                try {
+                    addOne(playlist, song)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    android.util.Log.w(
+                        "PlaylistSync",
+                        "Failed to add '" + song.title + "' to '" + playlist.title + "' (" + playlist.playlistId + ")",
+                        failure,
+                    )
+                    AddOutcome.FAILED
+                }
+            }
+            try {
+                onResult(
+                    outcomes.count { it == AddOutcome.ADDED },
+                    outcomes.count { it == AddOutcome.ALREADY_THERE },
+                    outcomes.count { it == AddOutcome.FAILED },
+                )
+            } catch (failure: Exception) {
+                android.util.Log.e("PlaylistSync", "Could not report playlist update result", failure)
+            }
         }
     }
 
