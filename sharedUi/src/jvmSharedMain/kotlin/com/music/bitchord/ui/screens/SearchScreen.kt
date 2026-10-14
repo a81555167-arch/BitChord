@@ -754,8 +754,13 @@ private fun LazyListScope.recentSearches(
             isCurrent = entity.entityType == EntityType.TRACK && currentSong != null && (
                 entity.id == currentSong.videoId ||
                     entity.id == currentSong.spotifyTrackId ||
-                    (entity.title.equals(currentSong.title, ignoreCase = true) &&
-                        entity.subtitle.equals(currentSong.artist, ignoreCase = true))
+                    (
+                        entity.title.trim().equals(currentSong.title.trim(), ignoreCase = true) &&
+                            (
+                                entity.subtitle.isBlank() ||
+                                    entity.subtitle.trim().equals(currentSong.artist.trim(), ignoreCase = true)
+                            )
+                    )
                 ),
             isPlaying = isPlaying,
             onClick = { onClick(entity) },
