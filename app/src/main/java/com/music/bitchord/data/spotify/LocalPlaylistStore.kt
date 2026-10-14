@@ -129,6 +129,32 @@ object LocalPlaylistStore {
         return true
     }
 
+    /**
+     * Removes one occurrence of [song] from a saved/imported local playlist.
+     * The updated playlist is persisted immediately so removals survive restarts.
+     */
+    fun removeSongFromPlaylist(id: String, song: Song): LocalPlaylist? {
+        val cleanId = id.removePrefix("local:playlist:")
+        val existing = _playlists.value.firstOrNull { it.id == cleanId || it.browseId == id }
+            ?: return null
+        val index = existing.songs.indexOfFirst { current ->
+            (song.spotifyTrackId != null && current.spotifyTrackId == song.spotifyTrackId) ||
+                (song.videoId.isNotBlank() && current.videoId == song.videoId) ||
+                (current.title.equals(song.title, ignoreCase = true) &&
+                    current.artist.equals(song.artist, ignoreCase = true))
+        }
+        if (index < 0) return null
+
+        val remainingSongs = existing.songs.toMutableList().apply { removeAt(index) }
+        val updatedPlaylist = existing.copy(songs = remainingSongs)
+        val updated = _playlists.value.map {
+            if (it.id == existing.id) updatedPlaylist else it
+        }
+        _playlists.value = updated
+        persist(updated)
+        return updatedPlaylist
+    }
+
     fun deletePlaylist(id: String) {
         val updated = _playlists.value.filterNot { it.id == id || it.browseId == id || it.id == id.removePrefix("local:playlist:") }
         _playlists.value = updated
