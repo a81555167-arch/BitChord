@@ -1053,11 +1053,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 playlist.playlistId.startsWith("spotify:") -> {
                     val id = playlist.playlistId.removePrefix("spotify:")
                     val cached = accountKey?.let { SpotifyLibraryCache.getTracks(it, id) }.orEmpty()
-                    cached.any { track ->
-                        (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
-                            (track.title.equals(song.title, ignoreCase = true) &&
-                                track.artist.equals(song.artist, ignoreCase = true))
-                    }
+                    cached.any { track -> sameSpotifyTrack(track, song) }
                 }
                 playlist.playlistId.startsWith("local:playlist:") ->
                     com.music.bitchord.data.spotify.LocalPlaylistStore
@@ -1106,11 +1102,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                         }
                                         .getOrElse { cached.orEmpty() }
                                 }
-                                tracks.any { track ->
-                                    (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
-                                        (track.title.equals(song.title, ignoreCase = true) &&
-                                            track.artist.equals(song.artist, ignoreCase = true))
-                                }
+                                tracks.any { track -> sameSpotifyTrack(track, song) }
                             }
                             playlist.playlistId.startsWith("local:playlist:") -> {
                                 com.music.bitchord.data.spotify.LocalPlaylistStore
@@ -1134,6 +1126,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             (target.videoId.isNotBlank() && candidate.videoId == target.videoId) ||
             (candidate.title.equals(target.title, ignoreCase = true) &&
                 candidate.artist.equals(target.artist, ignoreCase = true))
+
+    private fun sameSpotifyTrack(track: SpotifyTrack, song: Song): Boolean {
+        if (song.spotifyTrackId != null && track.id == song.spotifyTrackId) return true
+        fun normalize(value: String) = value.lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]"), "")
+        val trackTitle = normalize(track.title)
+        val songTitle = normalize(song.title)
+        if (songTitle.isBlank() || trackTitle != songTitle) return false
+        val trackArtist = normalize(track.artist)
+        val songArtist = normalize(song.artist)
+        return songArtist.isBlank() || trackArtist.isBlank() ||
+            trackArtist == songArtist || trackArtist.contains(songArtist) || songArtist.contains(trackArtist)
+    }
 
     private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
         if (playlist.playlistId.startsWith("local:playlist:")) {
@@ -1173,12 +1178,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val cachedTracks = accountKey
                 ?.takeIf { SpotifyLibraryCache.areTracksFresh(it, spotifyPlaylistId) }
                 ?.let { SpotifyLibraryCache.getTracks(it, spotifyPlaylistId) }
-            if (cachedTracks?.any { track ->
-                    (song.spotifyTrackId != null && track.id == song.spotifyTrackId) ||
-                        (track.title.equals(song.title, ignoreCase = true) &&
-                            track.artist.equals(song.artist, ignoreCase = true))
-                } == true
-            ) return AddOutcome.ALREADY_THERE
+            if (cachedTracks?.any { track -> sameSpotifyTrack(track, song) } == true) {
+                return AddOutcome.ALREADY_THERE
+            }
 
             val cachedTracksBeforeWrite = accountKey?.let {
                 SpotifyLibraryCache.getTracks(it, spotifyPlaylistId)
@@ -1426,10 +1428,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         // they were matched into a playlist. Resolve by title
                         // and artist rather than silently ignoring the removal.
                         SpotifyLibrary.tracks(spotifyPlaylistId)
-                            .firstOrNull {
-                                it.title.equals(song.title, ignoreCase = true) &&
-                                    it.artist.equals(song.artist, ignoreCase = true)
-                            }?.id
+                            .firstOrNull { track -> sameSpotifyTrack(track, song) }?.id
                             ?: throw IllegalStateException("Could not find this song in the Spotify playlist")
                     }
                     if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) {
