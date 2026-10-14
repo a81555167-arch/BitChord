@@ -1689,6 +1689,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deletePlaylist(playlist: UserPlaylist) {
+        if (playlist.playlistId.startsWith("spotify:")) {
+            val spotifyPlaylistId = playlist.playlistId.removePrefix("spotify:")
+            if (spotifyPlaylistId == SpotifyLibrary.LIKED_ID) return
+            viewModelScope.launch {
+                runCatching { SpotifyLibrary.deletePlaylist(spotifyPlaylistId) }
+                    .onSuccess {
+                        val accountKey = AppSettings.spotifySpdcToken.value
+                            .takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
+                        if (accountKey != null) SpotifyLibraryCache.invalidatePlaylists(accountKey)
+                        _playlists.value = _playlists.value
+                            .filterNot { it.playlistId == playlist.playlistId }
+                        editPlaylistShelf { items ->
+                            items.filterNot { it.browseId == playlist.browseId }
+                        }
+                        _detailStack.value = _detailStack.value
+                            .filterNot { it.browseId == playlist.browseId }
+                    }
+                    .onFailure { failure ->
+                        Toast.makeText(
+                            getApplication(),
+                            failure.message ?: "Spotify could not delete this playlist",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+            }
+            return
+        }
         if (!requireSignIn()) return
         viewModelScope.launch {
             YtMusicRepository.deletePlaylist(playlist.playlistId).fold(
