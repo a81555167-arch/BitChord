@@ -669,12 +669,18 @@ object StreamResolver {
     // ---- Format selection ---------------------------------------------------
 
     /**
-     * Highest stream at or under the ceiling set for the connection in use; if
-     * everything is above it (e.g. Low on a track that only has 130kbps+), take
-     * the cheapest available rather than failing.
+     * Playback must not silently exceed the selected data ceiling. If extraction
+     * only exposes formats above the requested bitrate, let this path fail and
+     * surface the failure instead of quietly spending more mobile data than the
+     * listener selected. Download selection has its own policy below.
      */
-    private fun <T> pickForQuality(candidates: List<Pair<Int, T>>): T? =
-        underCeiling(candidates, maxKbps())
+    private fun <T> pickForQuality(candidates: List<Pair<Int, T>>): T? {
+        val ceiling = maxKbps()
+        return candidates.asSequence()
+            .filter { it.first in 1..ceiling }
+            .maxByOrNull { it.first }
+            ?.second
+    }
 
     /**
      * Highest of [candidates] at or under [maxKbps]; if everything is above it
