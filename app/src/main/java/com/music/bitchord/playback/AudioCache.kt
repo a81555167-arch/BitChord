@@ -1330,6 +1330,13 @@ object AudioCache {
             return
         }
         val videoId = uri.getQueryParameter("v") ?: return
+        // Analysis prefetch can pull several megabytes for a track that the
+        // listener only asked to stream. On mobile data, keep playback and its
+        // normal on-demand cache working, but skip this speculative analysis.
+        if (isMeteredConnection()) {
+            TrackLog.d(TAG, "analysis head skipped on metered connection", about = videoId)
+            return
+        }
         // One round per track per session, and it is sized correctly up front
         // rather than grown into. See [analysisHeadSize] for why growing it was
         // the wrong shape.
