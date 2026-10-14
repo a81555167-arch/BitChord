@@ -1071,23 +1071,20 @@ object AudioCache {
     private suspend fun cacheWholeOnce(videoId: String): Boolean {
         val total = runCatching { StreamResolver.contentLength(videoId) }.getOrNull()
             ?: return false
+        val uri = Uri.parse("bitchord://watch?v=$videoId")
+        // Use the same quality-specific key the player reads. Checking the
+        // bare video id here would miss already-cached bytes after quality
+        // separation and download them again on every read-ahead pass.
+        val cacheKey = keyFactory.buildCacheKey(DataSpec(uri))
 
         var position = 0L
         while (position < total) {
             if (isMeteredConnection()) return false
-            // Checked per chunk, not just once per pass: a track long enough
-            // to need several chunks can lose the race partway through one,
-            // and a queue change mid-pass is exactly the "the player has it
-            // now" case the guard in [fetchWhole] exists for.
             if (pendingQueue.firstOrNull() != videoId) return false
             val length = minOf(CHUNK_BYTES, total - position)
-            if (cache.getCachedBytes(videoId, position, length) < length) {
-                fetch(videoId, position, length)
-                // Written nowhere means the entry is held elsewhere; the rest
-                // of this pass would be just as wasted. See [fetch] for why
-                // this can be true even though the fetch just above returned
-                // without error.
-                if (cache.getCachedBytes(videoId, position, length) < length) return false
+            if (cache.getCachedBytes(cacheKey, position, length) < length) {
+                fetch(cacheKey, uri, position, length)
+                if (cache.getCachedBytes(cacheKey, position, length) < length) return false
             }
             position += length
         }
