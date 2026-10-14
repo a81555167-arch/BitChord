@@ -2322,21 +2322,17 @@ private fun BitChordApp(
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
-            likeStatus = if (song.spotifyTrackId != null) {
-                if (song.spotifyTrackId in spotifyLikedIds) LikeStatus.LIKE else LikeStatus.INDIFFERENT
-            } else likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
+            // This is BitChord's Liked Music action, regardless of where the
+            // track was imported from. Spotify's Web Player session may not have
+            // the library-modify scope required by its separate REST endpoint;
+            // using YouTube's supported rating path keeps this control reliable.
+            likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
             onToggleLike = {
-                val alreadyLiked = if (song.spotifyTrackId != null) {
-                    song.spotifyTrackId in spotifyLikedIds
-                } else {
-                    likeStatuses[song.videoId] == LikeStatus.LIKE
-                }
-                if (alreadyLiked) {
+                if (likeStatuses[song.videoId] == LikeStatus.LIKE) {
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 } else {
-                    song.spotifyTrackId?.let { viewModel.toggleSpotifyLike(it, song) }
-                        ?: viewModel.toggleLike(song.videoId)
+                    viewModel.toggleLike(song.videoId)
                 }
             },
             // The service owns both the queue and the Shuffle state. Keeping
