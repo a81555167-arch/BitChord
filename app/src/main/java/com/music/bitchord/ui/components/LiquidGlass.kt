@@ -69,10 +69,10 @@ private const val SURFACE_OPACITY = 0.4f
 /**
  * Resolution fraction the glass surface records and processes its backdrop at.
  *
- * A quarter-resolution backdrop keeps the same liquid-glass treatment while
- * cutting the pixels processed by the colour matrix, blur and lens shader to
- * one sixteenth of full resolution. That matters most mid-fold, when shared
- * transitions can briefly keep several glass surfaces alive together.
+ * A 20%-scale backdrop keeps the same liquid-glass treatment while
+ * processing about 4% of full-resolution pixels through the colour matrix,
+ * blur and lens shader. That matters most mid-fold, when shared transitions
+ * can briefly keep several glass surfaces alive together.
  */
 private const val GLASS_RESOLUTION_SCALE = 0.20f
 
