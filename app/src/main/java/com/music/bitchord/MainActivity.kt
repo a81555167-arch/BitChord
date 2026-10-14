@@ -4347,7 +4347,12 @@ private fun BitChordApp(
                 },
                 onAddToPlaylist = {
                     songActions = null
-                    manageTrackPlaylists = false
+                    // Open the same membership-aware picker used by the player heart:
+                    // existing destinations are checked and can be toggled off.
+                    manageTrackPlaylists = true
+                    playlistMembershipIds = emptySet()
+                    playlistMembershipSongKey = null
+                    playlistMembershipLoading = true
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 },
