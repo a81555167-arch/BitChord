@@ -2326,7 +2326,18 @@ private fun BitChordApp(
                 if (song.spotifyTrackId in spotifyLikedIds) LikeStatus.LIKE else LikeStatus.INDIFFERENT
             } else likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
             onToggleLike = {
-                song.spotifyTrackId?.let { viewModel.toggleSpotifyLike(it, song) } ?: viewModel.toggleLike(song.videoId)
+                val alreadyLiked = if (song.spotifyTrackId != null) {
+                    song.spotifyTrackId in spotifyLikedIds
+                } else {
+                    likeStatuses[song.videoId] == LikeStatus.LIKE
+                }
+                if (alreadyLiked) {
+                    viewModel.loadPlaylists()
+                    playlistTarget = song
+                } else {
+                    song.spotifyTrackId?.let { viewModel.toggleSpotifyLike(it, song) }
+                        ?: viewModel.toggleLike(song.videoId)
+                }
             },
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
