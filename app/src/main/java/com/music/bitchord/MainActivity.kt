@@ -2354,12 +2354,17 @@ private fun BitChordApp(
                         viewModel.loadPlaylists()
                         playlistTarget = song
                     } else {
+                        // Keep a durable local copy before the optional Spotify sync.
+                        com.music.bitchord.data.spotify.LocalPlaylistStore
+                            .addSongToPlaylist("Liked Songs", song)
                         viewModel.toggleSpotifyLike(spotifyTrackId, song)
                     }
                 } else if (likeStatuses[song.videoId] == LikeStatus.LIKE) {
                     viewModel.loadPlaylists()
                     playlistTarget = song
                 } else {
+                    com.music.bitchord.data.spotify.LocalPlaylistStore
+                        .addSongToPlaylist("Liked Songs", song)
                     viewModel.toggleLike(song.videoId)
                 }
             },
