@@ -3029,6 +3029,7 @@ private fun BitChordApp(
                                 )
                             },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
+                            onRemoveFromPlaylist = { browseId, song -> viewModel.removeFromPlaylist(browseId, song) },
                             onSongSwipe = onSongSwipe,
                             onShuffle = { songs ->
                                 // Shuffle goes on first so the queue is built shuffled
@@ -3223,6 +3224,17 @@ private fun BitChordApp(
                                 playRadio(song, QueueSource(searchLabel, PlaybackSourceType.SEARCH))
                             },
                             onTopResultPlaylist = { song ->
+                                viewModel.recordEntity(SearchHistoryEntity(
+                                    id = song.videoId,
+                                    title = song.title,
+                                    subtitle = song.artist.ifEmpty { "" },
+                                    artworkUrl = song.thumbnailUrl,
+                                    entityType = EntityType.TRACK,
+                                ))
+                                viewModel.loadPlaylists()
+                                playlistTarget = song
+                            },
+                            onTrackPlaylist = { song ->
                                 viewModel.recordEntity(SearchHistoryEntity(
                                     id = song.videoId,
                                     title = song.title,
