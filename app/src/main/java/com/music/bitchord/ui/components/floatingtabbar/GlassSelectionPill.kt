@@ -447,23 +447,32 @@ private class PillSquashModel {
 
     private fun averageAcceleration(): Double {
         if (history.size < 3) return 0.0
-        val velocities = ArrayList<Pair<Double, Double>>(history.size)
-        for (i in 1 until history.size) {
-            val dt = history[i].second - history[i - 1].second
-            if (dt <= 0) continue
-            velocities.add(
-                (history[i].first - history[i - 1].first) / dt to
-                    (history[i].second + history[i - 1].second) / 2,
-            )
-        }
-        if (velocities.size < 2) return 0.0
+        // Calculate consecutive velocities in one pass. The previous version
+        // allocated a second list and a Pair for every sample on every frame
+        // of the glass animation, adding avoidable garbage collection right
+        // where the lens is already doing its most expensive drawing.
+        var previousVelocity = 0.0
+        var previousMidpoint = 0.0
+        var hasPreviousVelocity = false
         var total = 0.0
         var count = 0
-        for (i in 1 until velocities.size) {
-            val dt = velocities[i].second - velocities[i - 1].second
+        for (i in 1 until history.size) {
+            val before = history[i - 1]
+            val current = history[i]
+            val dt = current.second - before.second
             if (dt <= 0) continue
-            total += (velocities[i].first - velocities[i - 1].first) / dt
-            count++
+            val velocity = (current.first - before.first) / dt
+            val midpoint = (current.second + before.second) / 2
+            if (hasPreviousVelocity) {
+                val accelerationDt = midpoint - previousMidpoint
+                if (accelerationDt > 0) {
+                    total += (velocity - previousVelocity) / accelerationDt
+                    count++
+                }
+            }
+            previousVelocity = velocity
+            previousMidpoint = midpoint
+            hasPreviousVelocity = true
         }
         return if (count == 0) 0.0 else total / count
     }
