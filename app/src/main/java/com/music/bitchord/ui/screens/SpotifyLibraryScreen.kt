@@ -2,6 +2,7 @@ package com.music.bitchord.ui.screens
 import com.music.bitchord.data.spotify.SpotifyLibraryCache
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Build
@@ -30,6 +31,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import org.jetbrains.compose.resources.painterResource
 import com.music.bitchord.sharedui.resources.spotify_logo
 import com.music.bitchord.sharedui.resources.Res
@@ -46,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import android.widget.Toast
 import com.music.bitchord.R
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.spotify.SpotifyLibrary
@@ -101,6 +106,11 @@ fun SpotifyLibraryScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var refreshCounter by remember { mutableIntStateOf(0) }
     var lastHandledRefresh by remember { mutableIntStateOf(0) }
+    var showCreatePlaylist by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    var creatingPlaylist by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     BackHandler(enabled = showLogin) { showLogin = false }
 val cacheAccountKey = remember(cookie) {
     cookie.takeIf { it.isNotBlank() }?.let(::spotifyCacheAccountKey)
@@ -171,6 +181,56 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
         return
     }
 
+    if (showCreatePlaylist) {
+        AlertDialog(
+            onDismissRequest = { if (!creatingPlaylist) showCreatePlaylist = false },
+            title = { Text("Create Spotify playlist") },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    label = { Text("Playlist name") },
+                    singleLine = true,
+                    enabled = !creatingPlaylist,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = newPlaylistName.isNotBlank() && !creatingPlaylist,
+                    onClick = {
+                        val name = newPlaylistName.trim()
+                        scope.launch {
+                            creatingPlaylist = true
+                            runCatching { SpotifyLibrary.createPlaylist(name) }
+                                .onSuccess {
+                                    cacheAccountKey?.let(SpotifyLibraryCache::invalidatePlaylists)
+                                    newPlaylistName = ""
+                                    showCreatePlaylist = false
+                                    refreshCounter++
+                                }
+                                .onFailure { failure ->
+                                    Toast.makeText(
+                                        context,
+                                        failure.message ?: "Spotify could not create this playlist",
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                }
+                            creatingPlaylist = false
+                        }
+                    },
+                ) {
+                    Text(if (creatingPlaylist) "Creating…" else "Create")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !creatingPlaylist,
+                    onClick = { showCreatePlaylist = false },
+                ) { Text("Cancel") }
+            },
+        )
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -193,6 +253,12 @@ LaunchedEffect(cookie, cacheAccountKey, refreshCounter) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(Modifier.weight(1f))
+                TextButton(
+                    onClick = { showCreatePlaylist = true },
+                    enabled = cookie.isNotBlank() && !loading && !creatingPlaylist,
+                ) {
+                    Text("New playlist")
+                }
                 TextButton(
                     onClick = {
                         cacheAccountKey?.let { accountKey ->
