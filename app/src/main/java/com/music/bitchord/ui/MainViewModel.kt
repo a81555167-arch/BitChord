@@ -1102,22 +1102,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     AddOutcome.ADDED
                 },
                 onFailure = {
-                    // Spotify may be offline or reject the session mutation.
-                    // Update the exact imported local counterpart when present;
-                    // only create a fallback playlist if no counterpart exists.
-                    // This avoids accidentally creating a second local playlist
-                    // with the same name as the imported one.
-                    val localResult = if (localCopy != null) {
-                        localStore.addSongToLocalPlaylist(localCopy.browseId, song)
-                    } else {
-                        localStore.addSongToPlaylist(playlist.title, song)
-                        true
-                    }
-                    when (localResult) {
-                        true -> AddOutcome.ADDED
-                        false -> AddOutcome.ALREADY_THERE
-                        null -> AddOutcome.FAILED
-                    }
+                    // A Spotify playlist edit must never silently create or modify
+                    // a device-only playlist with the same title. Report the failure
+                    // instead, leaving the user's selected destination unambiguous.
+                    AddOutcome.FAILED
                 },
             )
         }
