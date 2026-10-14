@@ -509,6 +509,18 @@ object StreamResolver {
                 TrackLog.w(TAG, "InnerTubeX failed for $videoId: ${e.javaClass.simpleName}: ${e.message}")
                 return null
             } ?: return null
+            // InnerTubeX exposes LOW and AUTO rather than a true 128kbps rung.
+            // AUTO can therefore return a high-bitrate stream for Medium; reject
+            // it before probing or playback so the fallback can choose within the
+            // actual ceiling instead of quietly overspending data.
+            if (maxKbps != Int.MAX_VALUE && (found.kbps <= 0 || found.kbps > maxKbps)) {
+                TrackLog.d(
+                    TAG,
+                    "InnerTubeX ${found.profileId} offered ${found.kbps}kbps above the ${maxKbps}kbps ceiling for $videoId",
+                )
+                skip += found.profileId
+                return@repeat
+            }
             val verdict = timed("$videoId InnerTubeX ${found.profileId} probe") { probe(found.url) }
             if (verdict == Probe.OK) {
                 TrackLog.d(TAG, "resolved $videoId via InnerTubeX ${found.profileId} @ ${found.kbps}kbps")
