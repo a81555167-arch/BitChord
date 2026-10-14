@@ -6,6 +6,8 @@ import kotlinx.coroutines.launch
 import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
@@ -437,6 +439,8 @@ private fun SpotifyLogin(
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webViewClient = object : WebViewClient() {
+                    private val mainHandler = Handler(Looper.getMainLooper())
+
                     // Keep HTTPS redirects inside the login WebView. Spotify's
                     // sign-in flow can use new verification hosts, so a fixed host
                     // allowlist can interrupt authentication and leave this page blank.
@@ -459,16 +463,39 @@ private fun SpotifyLogin(
 
                     override fun onPageFinished(view: WebView, url: String?) {
                         if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
-                        if (sent || url?.startsWith("https://open.spotify.com") != true) return
-                        val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
-                        val token = raw.split(";")
+                        if (!sent && url?.startsWith("https://open.spotify.com") == true) {
+                            // Spotify may finish the redirect before WebView's cookie
+                            // jar exposes the new HttpOnly sp_dc cookie. Retry briefly
+                            // on the main thread instead of making the user sign in again.
+                            captureSessionCookie(view, 0)
+                        }
+                    }
+
+                    private fun captureSessionCookie(view: WebView, attempt: Int) {
+                        if (sent || !view.url.orEmpty().startsWith("https://open.spotify.com")) return
+                        val raw = CookieManager.getInstance()
+                            .getCookie("https://open.spotify.com")
+                        val token = raw.orEmpty().split(";")
                             .map { it.trim() }
                             .firstOrNull { it.startsWith("sp_dc=") }
                             ?.substringAfter("=")
                             ?.takeIf { it.isNotBlank() }
-                            ?: return
-                        sent = true
-                        onConnected(token)
+
+                        if (token != null) {
+                            sent = true
+                            mainHandler.removeCallbacksAndMessages(null)
+                            onConnected(token)
+                            return
+                        }
+
+                        // 20 attempts × 500 ms gives the redirect and cookie jar
+                        // up to ten seconds to settle. Stop if the user navigates away.
+                        if (attempt < 20) {
+                            mainHandler.postDelayed(
+                                { captureSessionCookie(view, attempt + 1) },
+                                500L,
+                            )
+                        }
                     }
                 }
                 loadUrl(LOGIN_URL)
