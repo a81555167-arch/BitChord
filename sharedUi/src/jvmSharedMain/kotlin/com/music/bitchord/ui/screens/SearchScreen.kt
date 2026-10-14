@@ -77,7 +77,6 @@ import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.ui.components.MessageState
 import com.music.bitchord.ui.components.PAGE_GUTTER
 import com.music.bitchord.ui.components.RowMoreButton
-import com.music.bitchord.ui.components.PlayingAccent
 import com.music.bitchord.ui.components.ROW_DIVIDER_INSET
 import com.music.bitchord.ui.components.SearchField
 import com.music.bitchord.ui.components.SongRow
@@ -342,7 +341,7 @@ fun SearchScreen(
                                     isCurrent = row.song.isSameTrackAs(currentSong),
                                     isPlaying = isPlaying && row.song.isSameTrackAs(currentSong),
                                     searchPlayingStyle = true,
-                                    activeTint = PlayingAccent,
+                                    activeTint = MaterialTheme.colorScheme.primary,
                                 )
                                 is SearchResult.Browse -> BrowseRow(
                                     item = row.item,
