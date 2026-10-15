@@ -265,6 +265,10 @@ object SpotifyLibrary {
             }
         }
         gql("addToPlaylist", ADD_TO_PLAYLIST, variables, headers)
+        // A successful GraphQL HTTP response is not enough to prove Spotify
+        // persisted the mutation. Confirm the track is visible in the playlist
+        // before reporting success to the UI.
+        verifyPlaylistTrack(headers, playlistId, trackId)
         trackId
     }
 
