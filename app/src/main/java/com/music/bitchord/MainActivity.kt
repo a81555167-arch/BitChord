@@ -4347,9 +4347,10 @@ private fun BitChordApp(
                     }
                 },
                 onAddToPlaylist = {
-                    // Close the current menu before opening the picker. Two
-                    // simultaneous ModalBottomSheets can crash on Android.
-                    manageTrackPlaylists = false
+                    // Use the membership-aware picker so playlists that already
+                    // contain this track are checked when the sheet opens. The
+                    // menu still closes first to avoid stacking bottom sheets.
+                    manageTrackPlaylists = true
                     playlistMembershipLoading = false
                     pendingPlaylistTarget = song
                     songActions = null
