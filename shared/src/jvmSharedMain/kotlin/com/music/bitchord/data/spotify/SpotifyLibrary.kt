@@ -58,14 +58,32 @@ object SpotifyLibrary {
     var auth: Auth? = null
 
     private const val GQL = "https://api-partner.spotify.com/pathfinder/v2/query"
-    private const val LIBRARY = "973e511ca44261fda7eebac8b653155e7caee3675abb4fb110cc1b8c78b091c3"
-    private const val PLAYLIST = "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763"
+    // Current + previous Spotify Web Player hashes, verified against Meld's
+    // public registry on 2026-10-14. Spotify rotates persisted-query hashes;
+    // gql() retries the previous hash and refreshes this registry on rejection.
+    private const val LIBRARY = "390c78e5b951029bad359785e69b07b536a509c581cbcd0aded5e5067f187455"
+    private const val PLAYLIST = "8964e8eafb21aa992a7d951d256d83285c04be2105d209262901de70cb97584a"
     private const val SEARCH_TRACKS = "bc1ca2fcd0ba1013a0fc88e6cc4f190af501851e3dafd3e1ef85840297694428"
     private const val SEARCH_DESKTOP = "db61238974d27839a136c9dc02bfdbe3fab7635f21cf85976ebff9a1ee281345"
-    // Spotify's Web Player mutations. Unlike api.spotify.com REST endpoints,
-    // these use the same session bearer that our embedded Web Player login yields.
-    private const val ADD_TO_PLAYLIST = "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"
-    private const val ADD_TO_LIBRARY = "7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d"
+    private const val ADD_TO_PLAYLIST = "b907ad6b088d5bf7680fa81198996d58398c2d55dfcdf59fcc959e0be98a418a"
+    private const val ADD_TO_LIBRARY = "896ebcb47815681340860d121cb5d494e157e2a78d3950385cd54e0393c67148"
+    private const val LIKED = "087278b20b743578a6262c2b0b4bcd20d879c503cc359a2285baf083ef944240"
+    private const val HASH_REGISTRY_URL = "https://francescograzioso.github.io/Meld/spotify-gql-hashes.json"
+
+    private data class GqlHashPair(val current: String, val previous: String? = null)
+    private val knownHashes = mapOf(
+        "libraryV3" to GqlHashPair(LIBRARY, "973e511ca44261fda7eebac8b653155e7caee3675abb4fb110cc1b8c78b091c3"),
+        "fetchPlaylist" to GqlHashPair(PLAYLIST, "243c0ba2736f16da721e3a227004bbcdb8df6c846f198bd478172e00aa1faf42"),
+        "fetchLibraryTracks" to GqlHashPair(LIKED),
+        "searchDesktop" to GqlHashPair(SEARCH_DESKTOP, "4801118d4a100f756e833d33984436a3899cff359c532f8fd3aaf174b60b3b49"),
+        "addToPlaylist" to GqlHashPair(ADD_TO_PLAYLIST, "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"),
+        "removeFromPlaylist" to GqlHashPair(ADD_TO_PLAYLIST, "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"),
+        "moveItemsInPlaylist" to GqlHashPair(ADD_TO_PLAYLIST, "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990"),
+        "addToLibrary" to GqlHashPair(ADD_TO_LIBRARY, "1ad0d40b3c09660d818b9e770eb1e84745dfbe941df159a64f8772b6fa2bfc3a"),
+        "removeFromLibrary" to GqlHashPair(ADD_TO_LIBRARY, "1ad0d40b3c09660d818b9e770eb1e84745dfbe941df159a64f8772b6fa2bfc3a"),
+    )
+    @Volatile private var remoteHashes: Map<String, GqlHashPair> = emptyMap()
+    @Volatile private var remoteHashesFetchedAt: Long = 0L
     /** The pseudo-playlist id for the Liked Songs collection, which has no playlist uri. */
     const val LIKED_ID = "liked"
     /** Spotify's own Liked Songs artwork, the purple heart; the collection has no cover of its own. */
@@ -612,32 +630,79 @@ object SpotifyLibrary {
     }
 
     private fun gql(operation: String, hash: String, variables: JsonObject, headers: Map<String, String>): JsonObject {
-        val body = buildJsonObject {
-            put("variables", variables)
-            put("operationName", operation)
-            putJsonObject("extensions") {
-                putJsonObject("persistedQuery") {
-                    put("version", 1)
-                    put("sha256Hash", hash)
+        fun attempt(candidate: String): JsonObject? {
+            val body = buildJsonObject {
+                put("variables", variables)
+                put("operationName", operation)
+                putJsonObject("extensions") {
+                    putJsonObject("persistedQuery") {
+                        put("version", 1)
+                        put("sha256Hash", candidate)
+                    }
                 }
             }
-        }
-        val request = Request.Builder()
-            .url(GQL)
-            .post(body.toString().toRequestBody(mediaType))
-            .apply { headers.forEach { (name, value) -> header(name, value) } }
-            .build()
-        val text = Http.client.newCall(request).execute().use { response ->
-            val payload = response.body?.string().orEmpty()
+            val response = Http.client.newCall(
+                Request.Builder()
+                    .url(GQL)
+                    .post(body.toString().toRequestBody(mediaType))
+                    .apply { headers.forEach { (name, value) -> header(name, value) } }
+                    .build(),
+            ).execute()
+            val payload = response.use { it.body?.string().orEmpty() }
+            if (response.code == 412 || payload.contains("PersistedQueryNotFound", ignoreCase = true)) return null
             if (!response.isSuccessful) {
-                throw IllegalStateException("Spotify $operation failed (${response.code})")
+                throw IllegalStateException("Spotify $operation failed (${response.code}): ${payload.take(240)}")
             }
-            payload
+            val root = json.parseToJsonElement(payload).jsonObject
+            val error = root.arr("errors")?.firstOrNull()?.jsonObject?.str("message")
+            if (!error.isNullOrBlank()) {
+                if (error.contains("PersistedQueryNotFound", ignoreCase = true)) return null
+                throw IllegalStateException(error)
+            }
+            return root
         }
-        val root = json.parseToJsonElement(text).jsonObject
-        val error = root.arr("errors")?.firstOrNull()?.jsonObject?.str("message")
-        if (!error.isNullOrBlank()) throw IllegalStateException(error)
-        return root
+
+        fun candidates(pairs: List<GqlHashPair>): List<String> =
+            (pairs.flatMap { listOfNotNull(it.current, it.previous) } + hash).distinct()
+
+        val localPair = knownHashes[operation]
+        for (candidate in candidates(listOfNotNull(remoteHashes[operation], localPair))) {
+            attempt(candidate)?.let { return it }
+        }
+
+        // All bundled hashes were rejected. Refresh once from Meld's maintained
+        // registry, then retry the newly published hash and its previous value.
+        val refreshed = fetchRemoteHashes(force = true)
+        for (candidate in candidates(listOfNotNull(refreshed[operation], remoteHashes[operation], localPair))) {
+            attempt(candidate)?.let { return it }
+        }
+        throw IllegalStateException("Spotify rejected every known persisted-query hash for $operation")
+    }
+
+    private fun fetchRemoteHashes(force: Boolean = false): Map<String, GqlHashPair> {
+        val now = System.currentTimeMillis()
+        if (!force && remoteHashes.isNotEmpty() && now - remoteHashesFetchedAt < 6 * 60 * 60 * 1000L) return remoteHashes
+        return try {
+            val request = Request.Builder().url(HASH_REGISTRY_URL).header("Accept", "application/json").get().build()
+            val payload = Http.client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IllegalStateException("Hash registry HTTP ${response.code}")
+                response.body?.string().orEmpty()
+            }
+            val operations = json.parseToJsonElement(payload).jsonObject.obj("operations") ?: return remoteHashes
+            val parsed = operations.mapNotNull { (name, value) ->
+                val item = value.jsonObject
+                val current = item.str("hash")?.takeIf { it.matches(Regex("[A-Fa-f0-9]{64}")) } ?: return@mapNotNull null
+                val previous = item.str("previous_hash")?.takeIf { it.matches(Regex("[A-Fa-f0-9]{64}")) }
+                name to GqlHashPair(current, previous)
+            }.toMap()
+            if (parsed.isNotEmpty()) {
+                remoteHashes = parsed
+                remoteHashesFetchedAt = now
+            }
+            remoteHashes
+        } catch (_: Exception) {
+            remoteHashes
+        }
     }
 }
 
