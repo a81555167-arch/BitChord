@@ -2404,21 +2404,18 @@ private fun BitChordApp(
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
-            // The heart represents playlist membership: it is accented while
-            // the track belongs to at least one list, and neutral when it does not.
+            // The heart reflects the actual liked state only, never membership
+            // in an arbitrary playlist. Tapping it opens the same plain
+            // Add to playlist flow as the song menu, without membership loading.
             likeStatus = if (
-                if (playlistMembershipSongKey == (song.spotifyTrackId ?: song.videoId)) {
-                    playlistMembershipIds.isNotEmpty()
+                if (song.spotifyTrackId != null) {
+                    song.spotifyTrackId in spotifyLikedIds
                 } else {
-                    cachedPlayerMembershipIds.isNotEmpty() ||
-                        (song.spotifyTrackId != null && song.spotifyTrackId in spotifyLikedIds)
+                    likeStatuses[song.videoId] == LikeStatus.LIKE
                 }
             ) LikeStatus.LIKE else LikeStatus.INDIFFERENT,
             onToggleLike = {
-                // Route the player's heart through the same membership-aware
-                // picker flow as "Add to playlist", rather than opening a
-                // separate picker path with its own loading sequence.
-                manageTrackPlaylists = true
+                manageTrackPlaylists = false
                 playlistMembershipLoading = false
                 pendingPlaylistTarget = song
             },
@@ -4349,10 +4346,9 @@ private fun BitChordApp(
                     }
                 },
                 onAddToPlaylist = {
-                    // Use the membership-aware picker so playlists that already
-                    // contain this track are checked when the sheet opens. The
-                    // menu still closes first to avoid stacking bottom sheets.
-                    manageTrackPlaylists = true
+                    // Use the normal Add to playlist flow, matching the player's
+                    // heart shortcut. No membership scan or preselected lists.
+                    manageTrackPlaylists = false
                     playlistMembershipLoading = false
                     pendingPlaylistTarget = song
                     songActions = null
