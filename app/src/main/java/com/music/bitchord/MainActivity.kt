@@ -4013,6 +4013,7 @@ private fun BitChordApp(
                 }
             }
             val nowPlayingSheetState = rememberSaveable(
+                showNowPlaying,
                 saver = SheetState.Saver(
                     skipPartiallyExpanded = true,
                     confirmValueChange = confirmSheetValue,
