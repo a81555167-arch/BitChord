@@ -2415,10 +2415,12 @@ private fun BitChordApp(
                 }
             ) LikeStatus.LIKE else LikeStatus.INDIFFERENT,
             onToggleLike = {
+                // Route the player's heart through the same membership-aware
+                // picker flow as "Add to playlist", rather than opening a
+                // separate picker path with its own loading sequence.
                 manageTrackPlaylists = true
-                playlistMembershipLoading = true
-                viewModel.loadPlaylists()
-                playlistTarget = song
+                playlistMembershipLoading = false
+                pendingPlaylistTarget = song
             },
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
