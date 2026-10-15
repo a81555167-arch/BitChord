@@ -29,7 +29,7 @@ import kotlin.math.abs
  * spends most of its time settling, slower and slower, into place, which is
  * where the eye is following the artwork home.
  */
-private const val SLIDE_STIFFNESS = 420f
+private const val SLIDE_STIFFNESS = 195f
 
 /** Close enough to stop, in pixels — rather than a spring's whole long tail. */
 private const val SLIDE_SETTLED_PX = 0.5f
@@ -38,7 +38,7 @@ private const val SLIDE_SETTLED_PX = 0.5f
 private const val SHEET_VELOCITY_FRESH_MS = 80f
 
 /** How long a sheet waits to be laid out before an open starts regardless. */
-private const val LAYOUT_WAIT_MS = 120L
+private const val LAYOUT_WAIT_MS = 300L
 
 /**
  * How long after the sheet appears its window gets its exit animation back —
