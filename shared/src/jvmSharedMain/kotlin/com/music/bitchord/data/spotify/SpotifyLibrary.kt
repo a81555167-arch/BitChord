@@ -67,7 +67,6 @@ object SpotifyLibrary {
     private const val SEARCH_DESKTOP = "db61238974d27839a136c9dc02bfdbe3fab7635f21cf85976ebff9a1ee281345"
     private const val ADD_TO_PLAYLIST = "b907ad6b088d5bf7680fa81198996d58398c2d55dfcdf59fcc959e0be98a418a"
     private const val ADD_TO_LIBRARY = "896ebcb47815681340860d121cb5d494e157e2a78d3950385cd54e0393c67148"
-    private const val LIKED = "087278b20b743578a6262c2b0b4bcd20d879c503cc359a2285baf083ef944240"
     private const val HASH_REGISTRY_URL = "https://francescograzioso.github.io/Meld/spotify-gql-hashes.json"
 
     private data class GqlHashPair(val current: String, val previous: String? = null)
