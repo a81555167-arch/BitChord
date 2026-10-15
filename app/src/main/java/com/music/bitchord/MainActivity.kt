@@ -661,6 +661,8 @@ private fun BitChordApp(
     // Separate from [songActions] so the menu can close behind it — the picker
     // is the next step, not a second sheet stacked on the first.
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // Defer opening the picker until the track menu has fully left composition.
+    var pendingPlaylistTarget by remember { mutableStateOf<Song?>(null) }
     // In this mode the player's heart manages playlist membership instead of
     // rating a track or directly toggling Spotify's Liked Songs.
     var manageTrackPlaylists by remember { mutableStateOf(false) }
@@ -916,6 +918,19 @@ private fun BitChordApp(
                 subtitle = spotify.owner.orEmpty(),
                 thumbnailUrl = spotify.imageUrl,
             )
+        }
+    }
+    LaunchedEffect(pendingPlaylistTarget, songActions, songMenuOrigin) {
+        val pending = pendingPlaylistTarget ?: return@LaunchedEffect
+        if (songActions != null || songMenuOrigin != null) return@LaunchedEffect
+        // Keep the two modal surfaces from opening in the same composition.
+        kotlinx.coroutines.delay(250)
+        if (pendingPlaylistTarget?.videoId == pending.videoId &&
+            songActions == null && songMenuOrigin == null
+        ) {
+            viewModel.loadPlaylists()
+            playlistTarget = pending
+            pendingPlaylistTarget = null
         }
     }
     LaunchedEffect(
@@ -4332,14 +4347,12 @@ private fun BitChordApp(
                     }
                 },
                 onAddToPlaylist = {
-                    songActions = null
-                    // Keep the menu's Add to playlist action on the original,
-                    // direct-add flow. Membership editing remains a separate
-                    // player-heart action and must not block adding search hits.
+                    // Close the current menu before opening the picker. Two
+                    // simultaneous ModalBottomSheets can crash on Android.
                     manageTrackPlaylists = false
                     playlistMembershipLoading = false
-                    viewModel.loadPlaylists()
-                    playlistTarget = song
+                    pendingPlaylistTarget = song
+                    songActions = null
                 },
                 onRemoveFromPlaylist = when {
                     !fromPlayer && currentBrowseId?.startsWith("local:playlist:") == true -> {
