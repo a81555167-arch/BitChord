@@ -443,7 +443,11 @@ object SpotifyLibrary {
             val candidates = items.mapNotNull { element ->
                 val item = element.jsonObject
                 val data = item.obj("data") ?: item.obj("item")?.obj("data") ?: item
-                val uri = data.str("uri") ?: data.str("_uri") ?: item.str("_uri")
+                val uri = data.str("uri")
+                    ?: data.str("_uri")
+                    ?: item.obj("item")?.str("_uri")
+                    ?: item.obj("item")?.str("uri")
+                    ?: item.str("_uri")
                 val id = uri?.substringAfterLast(":")
                     ?: data.str("id")
                     ?: return@mapNotNull null
