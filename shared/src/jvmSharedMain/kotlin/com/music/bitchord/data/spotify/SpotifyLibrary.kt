@@ -430,7 +430,9 @@ object SpotifyLibrary {
         if (term.isBlank()) return null
 
         fun scoreSearchResults(root: JsonObject): String? {
-            val items = root.obj("data")?.obj("searchV2")?.obj("tracks")?.arr("items")
+            val search = root.obj("data")?.obj("searchV2")
+            val items = search?.obj("tracksV2")?.arr("items")
+                ?: search?.obj("tracks")?.arr("items")
                 ?: root.obj("data")?.obj("search")?.obj("tracks")?.arr("items")
                 ?: root.obj("tracks")?.arr("items")
                 ?: return null
@@ -479,7 +481,12 @@ object SpotifyLibrary {
             put("searchTerm", term)
             put("offset", 0)
             put("limit", 10)
-            put("numberOfTopResults", 10)
+            put("numberOfTopResults", 5)
+            put("includeAudiobooks", false)
+            put("includeArtistHasConcertsField", false)
+            put("includePreReleases", false)
+            put("includeLocalConcertsField", false)
+            put("includeAuthors", false)
         }
         // Prefer the current Web Player operation hash; try the alternate operation
         // for clients where Spotify still exposes searchTracks.
