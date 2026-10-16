@@ -140,7 +140,6 @@ import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.DownloadQuality
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.data.settings.BrandTheme
-import com.music.bitchord.data.settings.PreferredStreamSource
 import com.music.bitchord.data.stats.Backup
 import com.music.bitchord.playback.AudioCache
 import com.music.bitchord.ui.player.fullBleedArtworkAvailable
@@ -179,7 +178,6 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     val wifiQuality by AppSettings.audioQualityWifi.collectAsStateWithLifecycle()
-    val preferredStreamSource by AppSettings.preferredStreamSource.collectAsStateWithLifecycle()
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
     val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
@@ -429,24 +427,6 @@ fun SettingsScreen(
                     title = sourceTitle,
                     subtitle = sourceSubtitle,
                     onClick = onSources,
-                )
-            }
-            val preferredSourceTitle = "Preferred music source"
-            row(preferredSourceTitle, "youtube music", "soundcloud", "search", "streaming") {
-                SettingsRow(
-                    icon = Icons.Rounded.LibraryMusic,
-                    title = preferredSourceTitle,
-                    subtitle = "Used for search results and preferred playback matches",
-                )
-                SegmentedControl(
-                    options = listOf("YouTube Music", "SoundCloud"),
-                    selectedIndex = if (preferredStreamSource == PreferredStreamSource.YOUTUBE) 0 else 1,
-                    onSelect = {
-                        AppSettings.setPreferredStreamSource(
-                            if (it == 0) PreferredStreamSource.YOUTUBE else PreferredStreamSource.SOUNDCLOUD,
-                        )
-                    },
-                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
             val onWifiTitle = stringResource(R.string.on_wifi)
