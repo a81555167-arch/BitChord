@@ -529,6 +529,12 @@ object StreamResolver {
                     TAG,
                     "InnerTubeX ${found.profileId} offered ${found.kbps}kbps above the ${maxKbps}kbps ceiling for $videoId",
                 )
+                // At the Low mobile-data ceiling, asking two more player clients
+                // for the same track is rarely useful: they tend to return the
+                // same format tier, and each rejected URL costs another player
+                // request plus a media probe. Fall through to the bounded
+                // extractor once instead of walking the client catalog.
+                if (maxKbps <= LOW_DATA_CEILING_KBPS) return null
                 skip += found.profileId
                 return@repeat
             }
@@ -547,6 +553,7 @@ object StreamResolver {
     fun mediaHeadersFor(url: String): Map<String, String> =
         InnerTubeXResolver.headersFor(url) ?: PlayerClient.forStreamUrl(url).mediaHeaders()
 
+    private const val LOW_DATA_CEILING_KBPS = 64
     private const val INNERTUBEX_ATTEMPTS = 3
 
     /** Logs how long [block] took, whatever it returns — a timing probe, not a control flow change. */
