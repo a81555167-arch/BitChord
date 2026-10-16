@@ -399,7 +399,7 @@ object AppSettings {
      * video. The video itself is still handed to the player first so its
      * metadata appears immediately while the catalogue match is resolved.
      */
-    val preferMusicOnly = MutableStateFlow(false)
+    val preferMusicOnly = MutableStateFlow(true)
 
     /** Analyzes audio waveform/envelope to align matching playback moment between versions. */
     val smartVersionAlignment = MutableStateFlow(true)
@@ -436,7 +436,7 @@ object AppSettings {
      * but it is the better default, and most tracks resolve to no canvas at
      * all. See [CanvasRepository][com.music.bitchord.data.canvas.CanvasRepository].
      */
-    val animatedCanvas = MutableStateFlow(true)
+    val animatedCanvas = MutableStateFlow(false)
 
     /**
      * Whether [animatedCanvas] is allowed to actually stream on a metered
@@ -862,7 +862,8 @@ object AppSettings {
         hideSongStatus.value = prefs.getBoolean(KEY_HIDE_SONG_STATUS, false)
         swipeToPlayNext.value = prefs.getBoolean(KEY_SWIPE_TO_PLAY_NEXT, false)
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
-        preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
+        preferMusicOnly.value = true
+        prefs.edit().putBoolean(KEY_PREFER_MUSIC_ONLY, true).apply()
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, false)
@@ -874,8 +875,13 @@ object AppSettings {
             reduceAnimation.value = false
             reduceDynamicBlur.value = false
         }
-        animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
-        canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
+        // This build is audio-only: retire any saved motion-art/video preference from older installs.
+        animatedCanvas.value = false
+        canvasOverCellular.value = false
+        prefs.edit()
+            .putBoolean(KEY_ANIMATED_CANVAS, false)
+            .putBoolean(KEY_CANVAS_OVER_CELLULAR, false)
+            .apply()
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, false)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
@@ -1256,8 +1262,9 @@ object AppSettings {
     }
 
     fun setPreferMusicOnly(value: Boolean) {
-        preferMusicOnly.value = value
-        prefs.edit().putBoolean(KEY_PREFER_MUSIC_ONLY, value).apply()
+        // Video playback is intentionally not a selectable mode in this build.
+        preferMusicOnly.value = true
+        prefs.edit().putBoolean(KEY_PREFER_MUSIC_ONLY, true).apply()
     }
 
     fun setSmartVersionAlignment(value: Boolean) {
@@ -1420,13 +1427,14 @@ object AppSettings {
     }
 
     fun setAnimatedCanvas(value: Boolean) {
-        animatedCanvas.value = value
-        prefs.edit().putBoolean(KEY_ANIMATED_CANVAS, value).apply()
+        // Keep the public setter safe for older call sites: animated video is disabled.
+        animatedCanvas.value = false
+        prefs.edit().putBoolean(KEY_ANIMATED_CANVAS, false).apply()
     }
 
     fun setCanvasOverCellular(value: Boolean) {
-        canvasOverCellular.value = value
-        prefs.edit().putBoolean(KEY_CANVAS_OVER_CELLULAR, value).apply()
+        canvasOverCellular.value = false
+        prefs.edit().putBoolean(KEY_CANVAS_OVER_CELLULAR, false).apply()
     }
 
     fun setSpotifyCanvasAutoHide(value: Boolean) {
