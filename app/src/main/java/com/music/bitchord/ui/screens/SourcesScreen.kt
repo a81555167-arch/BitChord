@@ -795,7 +795,6 @@ private fun SourceRow(
                 SourceKind.MODULE -> Icons.Rounded.Extension
                 SourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq // or some other icon
                 SourceKind.YOUTUBE -> Icons.Rounded.PlayCircle
-                SourceKind.SOUNDCLOUD -> Icons.Rounded.Cloud
             },
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onBackground,
