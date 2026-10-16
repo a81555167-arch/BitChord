@@ -26,6 +26,7 @@ import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsRepository
 import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.data.settings.PreferredStreamSource
 import com.music.bitchord.data.innertube.Innertube
 import com.music.bitchord.data.innertube.PlaybackTracker
 import com.music.bitchord.data.innertube.StreamResolver
@@ -194,7 +195,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val typeaheadResults: StateFlow<List<SearchResult>> = _typeaheadResults.asStateFlow()
 
     /** Where the Search tab looks — see [setSearchSource]. */
-    private val _searchSource = MutableStateFlow(SearchSource.YOUTUBE)
+    private val _searchSource = MutableStateFlow(
+        if (AppSettings.preferredStreamSource.value == PreferredStreamSource.SOUNDCLOUD) {
+            SearchSource.SOUNDCLOUD
+        } else SearchSource.YOUTUBE,
+    )
     val searchSource: StateFlow<SearchSource> = _searchSource.asStateFlow()
 
     /** Every track in the Local Music folder, read when the Library source is picked. */
@@ -2681,6 +2686,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setSearchSource(source: SearchSource) {
         if (_searchSource.value == source) return
         _searchSource.value = source
+        when (source) {
+            SearchSource.YOUTUBE -> AppSettings.setPreferredStreamSource(PreferredStreamSource.YOUTUBE)
+            SearchSource.SOUNDCLOUD -> AppSettings.setPreferredStreamSource(PreferredStreamSource.SOUNDCLOUD)
+            SearchSource.LIBRARY -> Unit
+        }
         if (source == SearchSource.SOUNDCLOUD) _filter.value = SearchFilter.SONGS
         _suggestions.value = emptyList()
         _typeaheadResults.value = emptyList()
