@@ -250,7 +250,7 @@ object SourceResolver {
         return matchAndStream(
             source = youtube,
             target = target,
-            request = StreamRequest.Best,
+            request = requestForNow(),
             strictLength = target.durationSec != null,
             requireSharedArtist = true,
         )?.also {
