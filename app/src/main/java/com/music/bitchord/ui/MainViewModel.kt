@@ -1937,6 +1937,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
+        // The catalogue selector in Settings is the single source of truth.
+        // Keep Search in step when it changes elsewhere, without turning a
+        // Library search into a streaming-catalogue search.
+        viewModelScope.launch {
+            AppSettings.preferredStreamSource.drop(1).collect { preferred ->
+                val target = when (preferred) {
+                    PreferredStreamSource.YOUTUBE -> SearchSource.YOUTUBE
+                    PreferredStreamSource.SOUNDCLOUD -> SearchSource.SOUNDCLOUD
+                }
+                if (_searchSource.value != SearchSource.LIBRARY &&
+                    _searchSource.value != target
+                ) {
+                    _searchSource.value = target
+                    if (target == SearchSource.SOUNDCLOUD) _filter.value = SearchFilter.SONGS
+                    _suggestions.value = emptyList()
+                    _typeaheadResults.value = emptyList()
+                    _searchScrollReset.value += 1
+                    if (_query.value.isNotBlank()) submitSearch()
+                }
+            }
+        }
         // Restore the heart state from the local Spotify cache without a network request.
         viewModelScope.launch(Dispatchers.IO) {
             AppSettings.spotifySpdcToken.collect { token ->
