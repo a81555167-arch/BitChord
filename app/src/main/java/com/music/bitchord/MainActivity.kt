@@ -3345,19 +3345,6 @@ private fun BitChordApp(
                             topPadding = topBarContentPadding(),
                             // The field is in the top bar; see the bar's accessory.
                             showField = false,
-                            // The settings page's own two-state selector, so the
-                            // app has one look for "pick one of these".
-                            sourceSwitcher = {
-                                SegmentedControl(
-                                    options = listOf(
-                                        stringResource(R.string.search_source_youtube),
-                                        stringResource(R.string.search_source_soundcloud),
-                                        stringResource(R.string.library),
-                                    ),
-                                    selectedIndex = searchSource.ordinal,
-                                    onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
-                                )
-                            },
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
                             searchingSoundCloud = searchSource == SearchSource.SOUNDCLOUD,
                             libraryResults = libraryResults,
