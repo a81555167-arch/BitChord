@@ -36,7 +36,7 @@ class SoundCloudSource(
         if (term.isEmpty() || limit <= 0) return@withContext emptyList()
         StreamResolver.ensureNewPipeInitialized()
         val service = ServiceList.SoundCloud
-        val handler = service.getSearchQHFactory().fromQuery(term, emptyList(), "")
+        val handler = service.getSearchQHFactory().fromQuery(term, listOf("tracks"), "")
         val extractor = service.getSearchExtractor(handler)
         extractor.fetchPage()
         extractor.initialPage.items
