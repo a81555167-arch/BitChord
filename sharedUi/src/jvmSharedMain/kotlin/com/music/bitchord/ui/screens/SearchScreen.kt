@@ -143,11 +143,6 @@ fun SearchScreen(
     libraryResults: UiState<List<Song>>? = null,
     /** Files on the device are a running order to play through, not a station seed. */
     onLibrarySongClick: (List<Song>, Int) -> Unit = onSongClick,
-    /**
-     * The YouTube / Library switcher, full width at the head of the page. Up
-     * only while the field is empty: once something is typed the page is
-     * about the results, and the switcher would just push them down.
-     */
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
