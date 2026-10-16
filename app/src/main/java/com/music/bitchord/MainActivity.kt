@@ -3351,6 +3351,7 @@ private fun BitChordApp(
                                 SegmentedControl(
                                     options = listOf(
                                         stringResource(R.string.search_source_youtube),
+                                        stringResource(R.string.search_source_soundcloud),
                                         stringResource(R.string.library),
                                     ),
                                     selectedIndex = searchSource.ordinal,
@@ -3358,6 +3359,7 @@ private fun BitChordApp(
                                 )
                             },
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
+                            searchingSoundCloud = searchSource == SearchSource.SOUNDCLOUD,
                             libraryResults = libraryResults,
                             // The same queue opening the Local Music folder and
                             // tapping the row there would give.
