@@ -189,15 +189,7 @@ object SourceRegistry {
             // that asked for a lossless output costs nothing — not even a timed
             // out search — while there isn't one. See [SourceConfig.checkValidLossless].
             .filterNot { it.awaitsLosslessOutput }
-            .sortedBy { config ->
-                when (config.kind) {
-                    SourceKind.YOUTUBE ->
-                        if (AppSettings.preferredStreamSource.value == com.music.bitchord.data.settings.PreferredStreamSource.YOUTUBE) 3 else 4
-                    SourceKind.SOUNDCLOUD ->
-                        if (AppSettings.preferredStreamSource.value == com.music.bitchord.data.settings.PreferredStreamSource.SOUNDCLOUD) 3 else 4
-                    else -> config.kind.rank
-                }
-            }
+            .sortedBy { config -> config.kind.rank }
             .mapNotNull { instances[it.id] }
 
     /**
@@ -466,7 +458,6 @@ object SourceRegistry {
         SourceKind.MODULE -> ModuleSource(config)
         SourceKind.JIOSAAVN -> JioSaavnSource(config)
         SourceKind.YOUTUBE -> YouTubeSource(config)
-        SourceKind.SOUNDCLOUD -> SoundCloudSource(config)
     }
 
     /**
@@ -510,7 +501,7 @@ object SourceRegistry {
             .build()
             .toString()
 
-    private val BUILT_IN_KINDS = listOf(SourceKind.JIOSAAVN, SourceKind.YOUTUBE, SourceKind.SOUNDCLOUD)
+    private val BUILT_IN_KINDS = listOf(SourceKind.JIOSAAVN, SourceKind.YOUTUBE)
 
     private const val KEY_SOURCES = "sources"
     /** One-shot migration: existing users must explicitly opt in again. */
