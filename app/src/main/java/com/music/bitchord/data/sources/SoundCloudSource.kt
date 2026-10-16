@@ -68,7 +68,10 @@ class SoundCloudSource(
             extractor.fetchPage()
             val candidates = extractor.audioStreams.filter {
                 !it.content.isNullOrBlank() &&
-                    it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP
+                    it.deliveryMethod in setOf(
+                        DeliveryMethod.PROGRESSIVE_HTTP,
+                        DeliveryMethod.HLS,
+                    )
             }
             if (candidates.isEmpty()) return@withContext null
             val selected = when (request) {
