@@ -50,7 +50,7 @@ class SoundCloudSource(
                     videoId = SourceRegistry.trackKey(config.id, item.url),
                     title = item.name,
                     artist = item.uploaderName.orEmpty(),
-                    thumbnailUrl = item.thumbnailUrl,
+                    thumbnailUrl = item.thumbnails.firstOrNull()?.url,
                     durationText = seconds?.let { String.format(Locale.ROOT, "%d:%02d", it / 60, it % 60) },
                     sourceQuality = "SOUNDCLOUD",
                 )
