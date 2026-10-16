@@ -739,7 +739,10 @@ private fun InlineQueueRow(
             Spacer(Modifier.width(4.dp))
         }
         AsyncImage(
-            model = rememberRemoteArtworkUrl(song),
+            // Queue rows must not fetch artwork for tracks that may never play.
+            // Only the active track may resolve a remote/embedded cover; future
+            // rows keep the neutral placeholder until they become current.
+            model = if (isCurrent) rememberRemoteArtworkUrl(song) else null,
             contentDescription = null,
             modifier = Modifier
                 .size(44.dp)
