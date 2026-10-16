@@ -189,7 +189,15 @@ object SourceRegistry {
             // that asked for a lossless output costs nothing — not even a timed
             // out search — while there isn't one. See [SourceConfig.checkValidLossless].
             .filterNot { it.awaitsLosslessOutput }
-            .sortedBy { it.kind.rank }
+            .sortedBy { config ->
+                when (config.kind) {
+                    SourceKind.YOUTUBE ->
+                        if (AppSettings.preferredStreamSource.value == com.music.bitchord.data.settings.PreferredStreamSource.YOUTUBE) 3 else 4
+                    SourceKind.SOUNDCLOUD ->
+                        if (AppSettings.preferredStreamSource.value == com.music.bitchord.data.settings.PreferredStreamSource.SOUNDCLOUD) 3 else 4
+                    else -> config.kind.rank
+                }
+            }
             .mapNotNull { instances[it.id] }
 
     /**
