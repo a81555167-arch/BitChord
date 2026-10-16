@@ -3311,7 +3311,6 @@ private fun BitChordApp(
                             // The field is in the top bar; see the bar's accessory.
                             showField = false,
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
-                            searchingSoundCloud = searchSource == SearchSource.SOUNDCLOUD,
                             libraryResults = libraryResults,
                             // The same queue opening the Local Music folder and
                             // tapping the row there would give.
