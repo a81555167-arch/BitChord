@@ -1100,7 +1100,6 @@ private fun BitChordApp(
     // Optimistically updated track for instant UI updates when switching versions
     var optimisticVersionSong by remember { mutableStateOf<Song?>(null) }
     // Track whether alternate (film/video vs release/audio) version exists for current track
-    var hasAlternateVersion by remember { mutableStateOf(false) }
 
     // Lyrics follow whatever is playing; duration lands a beat after the track.
     // Keyed on the lyric settings too, so turning a source on or off applies to
@@ -1485,41 +1484,6 @@ private fun BitChordApp(
         val song = player.song ?: return@LaunchedEffect
         if (preferMusicOnly && song.isVideo && song.videoId != keepVideoId) {
             switchToMusicOnly(song, pauseWhileResolving = true)
-        }
-    }
-
-    // Check if alternate (video vs audio) version exists in background.
-    // Skipped entirely in a Listen Together party: the track playing there is
-    // shared by everyone in it, and a per-listener version switch would put
-    // each member on their own cut of what is supposed to be one song — see
-    // [ListenTogether] and the matching guard server-side in
-    // [PlaybackService.smoothSwapCurrentTrackVersion].
-    LaunchedEffect(player.song?.videoId, convertedAudioId, convertedVideoId, partyState.inParty) {
-        val song = player.song
-        if (song == null || partyState.inParty) {
-            hasAlternateVersion = false
-            return@LaunchedEffect
-        }
-        if ((convertedFromVideo != null && convertedAudioId == song.videoId) ||
-            (convertedFromAudio != null && convertedVideoId == song.videoId)) {
-            hasAlternateVersion = true
-            return@LaunchedEffect
-        }
-        hasAlternateVersion = false
-        val exists = withContext(Dispatchers.IO) {
-            if (song.isVideo) {
-                runCatching {
-                    val resolved = YtMusicRepository.resolveAudio(song)
-                    resolved.videoId != song.videoId
-                }.getOrDefault(false)
-            } else {
-                runCatching {
-                    YtMusicRepository.resolveVideo(song) != null
-                }.getOrDefault(false)
-            }
-        }
-        if (player.song?.videoId == song.videoId) {
-            hasAlternateVersion = exists
         }
     }
 
@@ -4180,102 +4144,6 @@ private fun BitChordApp(
                 val art = song.thumbnailUrl.takeUnless { type == BrowseType.ARTIST }
                 viewModel.openDetail(id, title, sub, art, type)
             }
-            // Video vs audio, moved here from the player's own controls: it is
-            // the same kind of choice as Revert to original / Upgrade
-            // quality just above it — which recording is playing — so it now
-            // sits in the same list rather than as a control of its own.
-            //
-            // Mirrors what the pill used to compute, keyed to this sheet's
-            // own [song] rather than a `nowPlaying` lambda parameter: an
-            // in-flight optimistic swap is still read off [optimisticVersionSong]
-            // so a menu opened mid-switch describes the version actually
-            // becoming current, not the one about to be left.
-            val versionEffectiveSong = optimisticVersionSong?.takeIf {
-                it.videoId == convertedAudioId || it.videoId == convertedVideoId || it.videoId == keepVideoId ||
-                    it.videoId == YtMusicRepository.cachedAudioVersion(song.videoId)?.videoId ||
-                    it.videoId == YtMusicRepository.cachedVideoVersion(song.videoId)?.videoId
-            } ?: song
-            fun versionAlignmentPending(targetId: String): Boolean =
-                AppSettings.smartVersionAlignment.value &&
-                    VersionAudioAligner.getCachedOffsetMs(song.videoId, targetId) == null
-            val menuIsAudioVersion = if (optimisticVersionSong != null) {
-                !optimisticVersionSong!!.isVideo
-            } else {
-                !song.isVideo && convertedVideoId != song.videoId
-            }
-            val onToggleVersion: (() -> Unit)? = if (fromPlayer &&
-                hasAlternateVersion &&
-                !switchingAudioVersion &&
-                controller?.currentMediaItem?.mediaId == song.videoId
-            ) {
-                {
-                    songActions = null
-                    val c = controller
-                    val original = convertedFromVideo
-                    val originalAudio = convertedFromAudio
-                    when {
-                        c == null -> Unit
-                        original != null && (
-                            convertedAudioId == song.videoId ||
-                                convertedAudioId == versionEffectiveSong.videoId ||
-                                convertedAudioId == optimisticVersionSong?.videoId
-                            ) -> {
-                            keepVideoId = original.videoId
-                            convertedFromVideo = null
-                            convertedAudioId = null
-                            if (!versionAlignmentPending(original.videoId)) optimisticVersionSong = original
-                            c.swapToVersion(original)
-                        }
-                        originalAudio != null && (
-                            convertedVideoId == song.videoId ||
-                                convertedVideoId == versionEffectiveSong.videoId ||
-                                convertedVideoId == optimisticVersionSong?.videoId
-                            ) -> {
-                            convertedFromAudio = null
-                            convertedVideoId = null
-                            if (!versionAlignmentPending(originalAudio.videoId)) optimisticVersionSong = originalAudio
-                            c.swapToVersion(originalAudio)
-                        }
-                        versionEffectiveSong.isVideo || song.isVideo -> {
-                            val cached = YtMusicRepository.cachedAudioVersion(song.videoId)
-                                ?: YtMusicRepository.cachedAudioVersion(versionEffectiveSong.videoId)
-                            if (cached != null && cached.videoId != song.videoId &&
-                                !versionAlignmentPending(cached.videoId)
-                            ) {
-                                optimisticVersionSong = cached.copy(
-                                    isVideoOrigin = true,
-                                    queueTier = song.queueTier,
-                                    queueEntryId = song.queueEntryId,
-                                    radioName = song.radioName,
-                                    playbackSource = song.playbackSource,
-                                    playbackSourceType = song.playbackSourceType,
-                                    playbackSourceId = song.playbackSourceId,
-                                )
-                            }
-                            scope.launch { switchToMusicOnly(song, pauseWhileResolving = false) }
-                        }
-                        else -> {
-                            val cached = YtMusicRepository.cachedVideoVersion(song.videoId)
-                                ?: YtMusicRepository.cachedVideoVersion(versionEffectiveSong.videoId)
-                            if (cached != null && cached.videoId != song.videoId &&
-                                !versionAlignmentPending(cached.videoId)
-                            ) {
-                                optimisticVersionSong = cached.copy(
-                                    queueTier = song.queueTier,
-                                    queueEntryId = song.queueEntryId,
-                                    radioName = song.radioName,
-                                    playbackSource = song.playbackSource,
-                                    playbackSourceType = song.playbackSourceType,
-                                    playbackSourceId = song.playbackSourceId,
-                                )
-                            }
-                            scope.launch { switchToVideo(song, pauseWhileResolving = false) }
-                        }
-                    }
-                }
-            } else {
-                null
-            }
             // The library toggle needs tokens only YouTube can mint, and the
             // rating it comes back with is more authoritative than anything
             // the library feed knew — so the menu asks as it opens.
@@ -4435,8 +4303,6 @@ private fun BitChordApp(
                     null
                 },
                 upgradeQualityInProgress = fromPlayer && song.videoId in qualityUpgradesInFlight,
-                onToggleAudioVersion = onToggleVersion,
-                isAudioVersion = menuIsAudioVersion,
                 // Hidden outright when there's no real YouTube id behind
                 // this row to build a link from — SongActionsSheet already
                 // drops it for a local file via `isOffline`, this catches
