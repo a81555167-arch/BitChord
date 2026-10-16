@@ -2924,18 +2924,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     return@collectLatest
                 }
                 val sourceNow = _searchSource.value
-                val rows = if (sourceNow == SearchSource.SOUNDCLOUD) {
-                    SourceRegistry.active().firstOrNull { it.kind == SourceKind.SOUNDCLOUD }
-                        ?.let { source ->
-                            runCatching {
-                                withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
-                                    source.search(input, TYPEAHEAD_MAX_RESULTS)
-                                }
-                            }.getOrDefault(emptyList()).map { SearchResult.Track(it) }
-                        }.orEmpty()
-                } else {
-                    YtMusicRepository.searchTypeahead(input).getOrNull()?.rows.orEmpty()
+                // SoundCloud search returns a full media page rather than the
+                // tiny YouTube typeahead payload. Do not spend mobile data on
+                // a request for every few keystrokes; search it only on submit.
+                if (sourceNow == SearchSource.SOUNDCLOUD) {
+                    _typeaheadResults.value = emptyList()
+                    return@collectLatest
                 }
+                val rows = YtMusicRepository.searchTypeahead(input).getOrNull()?.rows.orEmpty()
                 if (_query.value != input || _searchSource.value != sourceNow) {
                     _typeaheadResults.value = emptyList()
                     return@collectLatest
