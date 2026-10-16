@@ -153,14 +153,6 @@ enum class SourceKind(
         rank = 3,
     ),
 
-    SOUNDCLOUD(
-        label = "SoundCloud",
-        detail = "Search and stream audio from SoundCloud using NewPipeExtractor.",
-        labels = listOf("Audio", "SoundCloud catalogue"),
-        needsServer = false,
-        canServeLossless = false,
-        rank = 4,
-    ),
     ;
 
     /** Whether this is a source the user configured, rather than one that ships. */
