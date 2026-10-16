@@ -94,7 +94,7 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
-/** What the Search tab searches: YouTube Music, or the Local Music folder on this device. */
+/** What the Search tab searches: YouTube Music, SoundCloud, or the Local Music folder. */
 enum class SearchSource { YOUTUBE, SOUNDCLOUD, LIBRARY }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
