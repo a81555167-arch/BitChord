@@ -54,6 +54,12 @@ fun AudioQuality.permits(kind: SourceKind): Boolean = when (this) {
  * PCM_FLOAT. Android may still route/resample it according to the selected
  * output device, which is why the player exposes the negotiated format.
  */
+/** The preferred catalogue for new searches and cross-source playback matches. */
+enum class PreferredStreamSource(val kind: SourceKind) {
+    YOUTUBE(SourceKind.YOUTUBE),
+    SOUNDCLOUD(SourceKind.SOUNDCLOUD),
+}
+
 enum class OutputPcmMode(val label: String) {
     PCM_16("16-bit PCM"),
     FLOAT_32("32-bit float"),
@@ -168,6 +174,7 @@ object AppSettings {
      * hundreds of megabytes per hour. The listener can raise the mobile ceiling
      * explicitly in Settings when data usage is not a concern.
      */
+    val preferredStreamSource = MutableStateFlow(PreferredStreamSource.YOUTUBE)
     val audioQualityWifi = MutableStateFlow(AudioQuality.LOSSLESS)
     val audioQualityCellular = MutableStateFlow(AudioQuality.MEDIUM)
 
@@ -789,6 +796,12 @@ object AppSettings {
 
     private fun readAll() {
         migrateSingleQuality()
+        preferredStreamSource.value = runCatching {
+            PreferredStreamSource.valueOf(
+                prefs.getString(KEY_PREFERRED_STREAM_SOURCE, PreferredStreamSource.YOUTUBE.name)
+                    ?: PreferredStreamSource.YOUTUBE.name,
+            )
+        }.getOrDefault(PreferredStreamSource.YOUTUBE)
         audioQualityWifi.value = readQuality(KEY_QUALITY_WIFI)
         audioQualityCellular.value = readQuality(KEY_QUALITY_CELLULAR)
         upgradeLengthSlackSeconds.value = prefs.getInt(
@@ -1059,6 +1072,11 @@ object AppSettings {
     fun setRepeatMode(value: Int) {
         repeatMode.value = value
         prefs.edit().putInt(KEY_REPEAT_MODE, value).apply()
+    }
+
+    fun setPreferredStreamSource(value: PreferredStreamSource) {
+        preferredStreamSource.value = value
+        prefs.edit().putString(KEY_PREFERRED_STREAM_SOURCE, value.name).apply()
     }
 
     fun setAudioQualityWifi(value: AudioQuality) {
@@ -1943,6 +1961,7 @@ object AppSettings {
     private fun normalizePerformanceRefreshRate(value: Int): Int =
         value.takeIf { it in 50..240 } ?: DEFAULT_PERFORMANCE_REFRESH_RATE
 
+    private const val KEY_PREFERRED_STREAM_SOURCE = "preferred_stream_source"
     private const val KEY_QUALITY_LEGACY = "audio_quality"
     private const val KEY_QUALITY_WIFI = "audio_quality_wifi"
     private const val KEY_QUALITY_CELLULAR = "audio_quality_cellular"
