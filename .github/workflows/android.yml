@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main, feature/spotify-library-cache]
+    branches: [main, feature/spotify-library-cache, feature/audio-sources-newpipe-soundcloud]
   workflow_dispatch:
 
 jobs:
