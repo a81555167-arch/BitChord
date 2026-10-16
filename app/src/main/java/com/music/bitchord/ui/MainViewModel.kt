@@ -26,7 +26,6 @@ import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsRepository
 import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.settings.AppSettings
-import com.music.bitchord.data.settings.PreferredStreamSource
 import com.music.bitchord.data.innertube.Innertube
 import com.music.bitchord.data.innertube.PlaybackTracker
 import com.music.bitchord.data.innertube.StreamResolver
@@ -94,8 +93,8 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
-/** What the Search tab searches: YouTube Music, SoundCloud, or the Local Music folder. */
-enum class SearchSource { YOUTUBE, SOUNDCLOUD, LIBRARY }
+/** What the Search tab searches: YouTube Music or the Local Music folder. */
+enum class SearchSource { YOUTUBE, LIBRARY }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -195,11 +194,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val typeaheadResults: StateFlow<List<SearchResult>> = _typeaheadResults.asStateFlow()
 
     /** Where the Search tab looks — see [setSearchSource]. */
-    private val _searchSource = MutableStateFlow(
-        if (AppSettings.preferredStreamSource.value == PreferredStreamSource.SOUNDCLOUD) {
-            SearchSource.SOUNDCLOUD
-        } else SearchSource.YOUTUBE,
-    )
+    private val _searchSource = MutableStateFlow(SearchSource.YOUTUBE)
     val searchSource: StateFlow<SearchSource> = _searchSource.asStateFlow()
 
     /** Every track in the Local Music folder, read when the Library source is picked. */
@@ -1937,27 +1932,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
-        // The catalogue selector in Settings is the single source of truth.
-        // Keep Search in step when it changes elsewhere, without turning a
-        // Library search into a streaming-catalogue search.
-        viewModelScope.launch {
-            AppSettings.preferredStreamSource.drop(1).collect { preferred ->
-                val target = when (preferred) {
-                    PreferredStreamSource.YOUTUBE -> SearchSource.YOUTUBE
-                    PreferredStreamSource.SOUNDCLOUD -> SearchSource.SOUNDCLOUD
-                }
-                if (_searchSource.value != SearchSource.LIBRARY &&
-                    _searchSource.value != target
-                ) {
-                    _searchSource.value = target
-                    if (target == SearchSource.SOUNDCLOUD) _filter.value = SearchFilter.SONGS
-                    _suggestions.value = emptyList()
-                    _typeaheadResults.value = emptyList()
-                    _searchScrollReset.value += 1
-                    if (_query.value.isNotBlank()) submitSearch()
-                }
-            }
-        }
         // Restore the heart state from the local Spotify cache without a network request.
         viewModelScope.launch(Dispatchers.IO) {
             AppSettings.spotifySpdcToken.collect { token ->
@@ -2707,18 +2681,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setSearchSource(source: SearchSource) {
         if (_searchSource.value == source) return
         _searchSource.value = source
-        when (source) {
-            SearchSource.YOUTUBE -> AppSettings.setPreferredStreamSource(PreferredStreamSource.YOUTUBE)
-            SearchSource.SOUNDCLOUD -> AppSettings.setPreferredStreamSource(PreferredStreamSource.SOUNDCLOUD)
-            SearchSource.LIBRARY -> Unit
-        }
-        if (source == SearchSource.SOUNDCLOUD) _filter.value = SearchFilter.SONGS
+        if (source == SearchSource.YOUTUBE) _filter.value = SearchFilter.ALL
         _suggestions.value = emptyList()
         _typeaheadResults.value = emptyList()
         _searchScrollReset.value += 1
         when (source) {
             SearchSource.LIBRARY -> loadLibrarySongs()
-            SearchSource.YOUTUBE, SearchSource.SOUNDCLOUD -> submitSearch()
+            SearchSource.YOUTUBE -> submitSearch()
         }
     }
 
@@ -2745,7 +2714,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onFilterChange(value: SearchFilter) {
-        if (_searchSource.value == SearchSource.SOUNDCLOUD && value != SearchFilter.SONGS) return
         if (_filter.value == value) return
         _filter.value = value
         searchSubmitted = true
@@ -2833,33 +2801,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     return@collectLatest
                 }
 
-                if (request.source == SearchSource.SOUNDCLOUD) {
-                    val source = SourceRegistry.active().firstOrNull { it.kind == SourceKind.SOUNDCLOUD }
-                    val rows = if (source == null) emptyList() else runCatching {
-                        withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
-                            source.search(request.query, SOURCE_SEARCH_LIMIT)
-                        }
-                    }.getOrDefault(emptyList()).map { SearchResult.Track(it) }
-                    if (request.requestId != newestRequestId.get()) return@collectLatest
-                    if (rows.isEmpty()) {
-                        _results.value = UiState.Error(
-                            if (source == null) "SoundCloud is disabled in Sources" else text(R.string.no_results),
-                        )
-                    } else {
-                        searchCache.put(key, SearchCacheEntry(rows, null))
-                        searchSession = SearchSession(key, request.requestId, request.filter, null)
-                        prefetchTopResult(rows)
-                        _results.value = UiState.Success(rows)
-                    }
-                } else {
-                    // YouTube remains the default catalogue and retains its own continuation paging.
-                    val result = YtMusicRepository.searchPage(request.query, request.filter)
-                    if (request.requestId != newestRequestId.get()) return@collectLatest
-                    _results.value = result.fold(
-                        onSuccess = { page -> published(page, key, request.requestId) },
-                        onFailure = { failure -> UiState.Error(failure.friendly()) },
-                    )
-                }
+                // YouTube remains the default catalogue and retains its own continuation paging.
+                val result = YtMusicRepository.searchPage(request.query, request.filter)
+                if (request.requestId != newestRequestId.get()) return@collectLatest
+                _results.value = result.fold(
+                    onSuccess = { page -> published(page, key, request.requestId) },
+                    onFailure = { failure -> UiState.Error(failure.friendly()) },
+                )
             }
     }
 
@@ -2919,10 +2867,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .debounce(SUGGEST_DEBOUNCE_MS)
             .collectLatest { input ->
                 if (!stillWanted(input)) return@collectLatest
-                if (_searchSource.value == SearchSource.SOUNDCLOUD) {
-                    _suggestions.value = listOf(input)
-                    return@collectLatest
-                }
                 val fetched = YtMusicRepository.searchSuggestions(input).getOrNull()
                     ?: return@collectLatest
                 if (!stillWanted(input)) return@collectLatest
@@ -2955,13 +2899,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     return@collectLatest
                 }
                 val sourceNow = _searchSource.value
-                // SoundCloud search returns a full media page rather than the
-                // tiny YouTube typeahead payload. Do not spend mobile data on
-                // a request for every few keystrokes; search it only on submit.
-                if (sourceNow == SearchSource.SOUNDCLOUD) {
-                    _typeaheadResults.value = emptyList()
-                    return@collectLatest
-                }
                 val rows = YtMusicRepository.searchTypeahead(input).getOrNull()?.rows.orEmpty()
                 if (_query.value != input || _searchSource.value != sourceNow) {
                     _typeaheadResults.value = emptyList()
