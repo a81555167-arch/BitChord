@@ -177,6 +177,9 @@ object StreamResolver {
 
     private val init by lazy { NewPipe.init(OkHttpDownloader()) }
 
+    /** Ensures NewPipe is initialized before another built-in extractor uses its downloader. */
+    fun ensureNewPipeInitialized() { init }
+
     /**
      * The extractor's own leash on [Http.client].
      *
