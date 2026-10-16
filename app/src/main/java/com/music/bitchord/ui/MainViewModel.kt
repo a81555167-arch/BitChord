@@ -94,7 +94,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /** What the Search tab searches: YouTube Music, or the Local Music folder on this device. */
-enum class SearchSource { YOUTUBE, LIBRARY }
+enum class SearchSource { YOUTUBE, SOUNDCLOUD, LIBRARY }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -2686,7 +2686,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _searchScrollReset.value += 1
         when (source) {
             SearchSource.LIBRARY -> loadLibrarySongs()
-            SearchSource.YOUTUBE -> submitSearch()
+            SearchSource.YOUTUBE, SearchSource.SOUNDCLOUD -> submitSearch()
         }
     }
 
@@ -2713,6 +2713,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onFilterChange(value: SearchFilter) {
+        if (_searchSource.value == SearchSource.SOUNDCLOUD && value != SearchFilter.SONGS) return
         if (_filter.value == value) return
         _filter.value = value
         searchSubmitted = true
@@ -2729,17 +2730,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private data class SearchRequest(
         val query: String,
         val filter: SearchFilter,
+        val source: SearchSource,
         val requestId: Long,
     )
 
-    private fun cacheKey(query: String, filter: SearchFilter) = "${filter.name}:$query"
+    private fun cacheKey(query: String, filter: SearchFilter, source: SearchSource) = "${source.name}:${filter.name}:$query"
 
     /**
      * The results of the longest earlier query this one starts with — near
      * enough to leave up while the narrower search runs.
      */
-    private fun prefixMatch(query: String, filter: SearchFilter): List<SearchResult>? {
-        val prefix = "${filter.name}:"
+    private fun prefixMatch(query: String, filter: SearchFilter, source: SearchSource): List<SearchResult>? {
+        val prefix = "${source.name}:${filter.name}:"
         return searchCache.snapshot()
             .filterKeys { it.startsWith(prefix) && query.startsWith(it.removePrefix(prefix), true) }
             .maxByOrNull { it.key.length }
@@ -2762,7 +2764,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _searchScrollReset.value += 1
         searchSession = null
         _searchLoadingMore.value = false
-        searchRequests.tryEmit(SearchRequest(query, _filter.value, id))
+        searchRequests.tryEmit(SearchRequest(query, _filter.value, _searchSource.value, id))
     }
 
     /**
@@ -2787,35 +2789,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun startSearchPipeline() = viewModelScope.launch {
         searchRequests
             .collectLatest { request ->
-                val key = cacheKey(request.query, request.filter)
+                val key = cacheKey(request.query, request.filter, request.source)
                 // Something to look at immediately: the exact answer if this
                 // query has been run before, otherwise the closest earlier
                 // one. Only fall back to a spinner with neither.
                 val exact = searchCache.get(key)
-                val cached = exact?.rows ?: prefixMatch(request.query, request.filter)
+                val cached = exact?.rows ?: prefixMatch(request.query, request.filter, request.source)
                 _results.value = cached?.let { UiState.Success(it) } ?: UiState.Loading
                 if (exact != null) {
                     searchSession = SearchSession(key, request.requestId, request.filter, exact.continuation)
                     return@collectLatest
                 }
 
-                // Search is YouTube's alone. A module is a *substitution*
-                // layer, not a catalogue to browse: it never has cover art,
-                // radio, related tracks or an album page, so its rows arrived
-                // in the results list looking like YouTube's and then behaved
-                // nothing like them. Every track found here takes the ordinary
-                // YouTube path and is handed to the module at playback time —
-                // see [SourceResolver.substituteForYouTube] — which upgrades
-                // the ones it holds without any of them having to be a
-                // separate row to pick between.
-                val result = YtMusicRepository.searchPage(request.query, request.filter)
-                // A search that has been superseded shouldn't land on screen,
-                // whether it succeeded or failed.
-                if (request.requestId != newestRequestId.get()) return@collectLatest
-                _results.value = result.fold(
-                    onSuccess = { page -> published(page, key, request.requestId) },
-                    onFailure = { failure -> UiState.Error(failure.friendly()) },
-                )
+                if (request.source == SearchSource.SOUNDCLOUD) {
+                    val source = SourceRegistry.active().firstOrNull { it.kind == SourceKind.SOUNDCLOUD }
+                    val rows = if (source == null) emptyList() else runCatching {
+                        withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
+                            source.search(request.query, SOURCE_SEARCH_LIMIT)
+                        }
+                    }.getOrDefault(emptyList()).map { SearchResult.Track(it) }
+                    if (request.requestId != newestRequestId.get()) return@collectLatest
+                    if (rows.isEmpty()) {
+                        _results.value = UiState.Error(
+                            if (source == null) "SoundCloud is disabled in Sources" else text(R.string.no_results),
+                        )
+                    } else {
+                        searchCache.put(key, SearchCacheEntry(rows, null))
+                        searchSession = SearchSession(key, request.requestId, request.filter, null)
+                        prefetchTopResult(rows)
+                        _results.value = UiState.Success(rows)
+                    }
+                } else {
+                    // YouTube remains the default catalogue and retains its own continuation paging.
+                    val result = YtMusicRepository.searchPage(request.query, request.filter)
+                    if (request.requestId != newestRequestId.get()) return@collectLatest
+                    _results.value = result.fold(
+                        onSuccess = { page -> published(page, key, request.requestId) },
+                        onFailure = { failure -> UiState.Error(failure.friendly()) },
+                    )
+                }
             }
     }
 
@@ -2875,9 +2887,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .debounce(SUGGEST_DEBOUNCE_MS)
             .collectLatest { input ->
                 if (!stillWanted(input)) return@collectLatest
+                if (_searchSource.value == SearchSource.SOUNDCLOUD) {
+                    _suggestions.value = listOf(input)
+                    return@collectLatest
+                }
                 val fetched = YtMusicRepository.searchSuggestions(input).getOrNull()
                     ?: return@collectLatest
-                // Asked again on the way back; the field is live throughout.
                 if (!stillWanted(input)) return@collectLatest
                 _suggestions.value = listOf(input) +
                     fetched.filterNot { it.equals(input, ignoreCase = true) }
@@ -2907,14 +2922,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _typeaheadResults.value = emptyList()
                     return@collectLatest
                 }
-                val result = YtMusicRepository.searchTypeahead(input).getOrNull()
-                // If the field moved on, drop the result silently.
-                if (_query.value != input) {
+                val sourceNow = _searchSource.value
+                val rows = if (sourceNow == SearchSource.SOUNDCLOUD) {
+                    SourceRegistry.active().firstOrNull { it.kind == SourceKind.SOUNDCLOUD }
+                        ?.let { source ->
+                            runCatching {
+                                withTimeout(SOURCE_SEARCH_TIMEOUT_MS) {
+                                    source.search(input, TYPEAHEAD_MAX_RESULTS)
+                                }
+                            }.getOrDefault(emptyList()).map { SearchResult.Track(it) }
+                        }.orEmpty()
+                } else {
+                    YtMusicRepository.searchTypeahead(input).getOrNull()?.rows.orEmpty()
+                }
+                if (_query.value != input || _searchSource.value != sourceNow) {
                     _typeaheadResults.value = emptyList()
                     return@collectLatest
                 }
-                // Cap results so the dropdown doesn't grow unbounded.
-                _typeaheadResults.value = result?.rows.orEmpty().take(TYPEAHEAD_MAX_RESULTS)
+                _typeaheadResults.value = rows.take(TYPEAHEAD_MAX_RESULTS)
             }
     }
 
