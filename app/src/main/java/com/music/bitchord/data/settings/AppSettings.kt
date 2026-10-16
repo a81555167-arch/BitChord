@@ -43,7 +43,7 @@ fun AudioQuality.permits(kind: SourceKind): Boolean = when (this) {
     // all of them before it answers, which is seconds spent to land on a
     // transcode JioSaavn already has at 320.
     AudioQuality.HIGH -> !kind.canServeLossless
-    AudioQuality.MEDIUM, AudioQuality.LOW -> kind == SourceKind.YOUTUBE
+    AudioQuality.MEDIUM, AudioQuality.LOW -> kind == SourceKind.YOUTUBE || kind == SourceKind.SOUNDCLOUD
 }
 
 /**
