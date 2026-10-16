@@ -139,8 +139,6 @@ fun SearchScreen(
      * YouTube. The phone's top bar flips this; the desktop never does.
      */
     searchingLibrary: Boolean = false,
-    /** Whether results are coming from SoundCloud rather than YouTube Music. */
-    searchingSoundCloud: Boolean = false,
     /** The Library source's tracks for [query]; null while nothing is typed. */
     libraryResults: UiState<List<Song>>? = null,
     /** Files on the device are a running order to play through, not a station seed. */
@@ -150,7 +148,6 @@ fun SearchScreen(
      * only while the field is empty: once something is typed the page is
      * about the results, and the switcher would just push them down.
      */
-    sourceSwitcher: (@Composable () -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -226,7 +223,7 @@ fun SearchScreen(
             // they stay up for an empty or failed search too, or picking a filter
             // that finds nothing would take away the control needed to leave it.
             // They are YouTube's categories, so the Library source has none.
-            if (results != null && !suggesting && !searchingLibrary && !searchingSoundCloud) {
+            if (results != null && !suggesting && !searchingLibrary) {
                 SearchFilterTabs(filter = filter, onFilterChange = onFilterChange)
             }
         }
