@@ -898,118 +898,15 @@ object AudioCache {
      * of skips only wherever the listener actually lands is worth chasing.
      */
     fun prefetchQueue(upcoming: List<Upcoming>) {
+        // Keep the queue identity up to date, but do not do network work for
+        // upcoming tracks. A queued song may never be played: do not resolve
+        // its stream URL, look up a substitute, or download any audio bytes
+        // until the player opens that song for actual playback.
         val mediaIds = upcoming.map { it.mediaId }
         if (mediaIds == pendingQueue) return
-        android.util.Log.d("BCFetchDebug", "prefetchQueue: head ${pendingQueue.firstOrNull()} -> ${mediaIds.firstOrNull()}")
         pendingQueue = mediaIds
         job?.cancel()
-        // Both halves of the read-ahead below go through [StreamResolver],
-        // which speaks YouTube ids and nothing else. A source-backed track
-        // handed to it resolves to a failure, so filtering here saves a dead
-        // round trip per queued track rather than changing any outcome —
-        // read-ahead for those is a separate job, and their servers are
-        // typically a good deal closer than googlevideo anyway.
-        //
-        val videoIds = mediaIds.filter { SourceRegistry.parseTrackKey(it) == null }
-            // A track already on disk needs no reading ahead, and read-ahead
-            // speaks only to googlevideo: warming one would spend mobile data
-            // fetching a second copy of a file the listener deliberately saved,
-            // then cache it under a key playback is never going to ask for —
-            // it plays the download instead. See [Song.toMediaItem].
-            .filter { it !in Downloads.saved.value }
-        // With substitution possible, only the *bytes* half drops out. Read-
-        // ahead builds its own spec below from an id alone and carries none of
-        // the title and artist a substitution is matched on — so it resolves
-        // to YouTube and would write Opus bytes into the very entry playback
-        // is about to fill from a higher-ranked source, under the same key, at
-        // whatever offset each of them happened to reach. Reading ahead for a
-        // track and then corrupting it is worse than not reading ahead at all.
-        //
-        // The URL half is a different matter and was thrown out with it, at
-        // real cost. Warming [StreamResolver]'s own cache writes nothing to
-        // disk and cannot corrupt anything, and it is the difference between
-        // the fallback starting instantly and starting with a full client walk
-        // — measured at 7.9s. Since the fallback now races the module lookup
-        // rather than waiting behind it, that walk is what a track waits on
-        // whenever the modules are slow, and warming it here is what makes the
-        // race worth running at all.
-        val substitutable = SourceResolver.canSubstituteForYouTube()
-        job = videoIds.firstOrNull()?.let { next ->
-            val target = upcoming.firstOrNull { it.mediaId == next }?.target
-            // A track the listener reverted plays from its own `#original`
-            // rendition — see [OriginalVersion] — while read-ahead builds its
-            // spec from an id alone and so writes under the plain key. Every
-            // byte of that would land in an entry playback is never going to
-            // read, and pinning a substitute for it would pin a source it is
-            // never going to use. The URL half below is still worth having: a
-            // reverted track resolves through YouTube, which is what it warms.
-            val pinnedToYouTube = OriginalVersion.isPinned(next)
-            scope.launch {
-                // With substitution on, the *bytes* half above used to be
-                // switched off outright, and the paragraph explaining why is
-                // still correct as far as it goes: read-ahead resolving to
-                // YouTube on its own would write Opus into the entry a
-                // higher-ranked source is about to fill.
-                //
-                // What it treated as impossible was knowing the answer in
-                // advance. A quick source can be asked *here* — see
-                // [SourceResolver.prefetchSubstitute] — and once its stream is
-                // recorded in [StreamChoice], the question stops being open:
-                // every later resolve for this track, read-ahead's own included,
-                // is held to that one stream. Both writers then agree on the
-                // file and on the `#alt` key it lands under, which is exactly
-                // the condition the byte half was missing.
-                //
-                // A source that is disabled, doesn't have the track, or fails
-                // leaves nothing pinned, and this falls through to the same
-                // URL-only warm-up it did before — YouTube resolves the track at
-                // playback time as usual.
-                // Don't issue speculative catalogue/source lookups on a metered
-                // connection. The actual track will resolve when playback reaches it.
-                val metered = isMeteredConnection()
-                val warmed = if (!metered && substitutable && target != null && !pinnedToYouTube) {
-                    runCatching { SourceResolver.prefetchSubstitute(target) }
-                        .onFailure { TrackLog.d(TAG, "warm-up substitute failed for $next: ${it.message}", about = next) }
-                        .getOrNull()
-                        ?.also { StreamChoice.remember(next, it, substituted = true) }
-                } else {
-                    null
-                }
-                // Safe to fill for the same reason in both cases: either nothing
-                // outranks YouTube and read-ahead is the only writer, or a
-                // source has been pinned and every writer now resolves to it.
-                val cacheBytes = (!substitutable || warmed != null) && !pinnedToYouTube
-                // Never download speculative audio on a metered connection.
-                // Playback still caches the bytes the listener actually hears;
-                // the full-track prefetch waits for unmetered Wi-Fi.
-                if (cacheBytes && !metered) {
-                    launch(TrackLog.about(next)) {
-                        delay(PREFETCH_DELAY_MS)
-                        if (isMeteredConnection()) return@launch
-                        fetch(next, 0, PRELOAD_BYTES)
-                        if (!isMeteredConnection()) fetchWhole(next)
-                    }
-                }
-                // URL resolution is network work too: it may walk several
-                // player clients and scrape a watch page. Skip that hidden
-                // background traffic on cellular, not only the audio bytes.
-                if (metered || isMeteredConnection()) return@launch
-                launch {
-                    delay(PREFETCH_DELAY_MS)
-                    for (id in videoIds.take(QUEUE_LOOKAHEAD + 1).let { if (cacheBytes) it.drop(1) else it }) {
-                        if (isMeteredConnection()) break
-                        // A track already pinned to another source has no use
-                        // for a YouTube URL: nothing will ask for one, and
-                        // minting it spends a client walk to fill a cache entry
-                        // that is never read.
-                        if (id == next && warmed != null) continue
-                        runCatching { StreamResolver.resolve(id) }
-                            .onFailure { TrackLog.d(TAG, "queue warm-up skipped $id: ${it.message}", about = id) }
-                        delay(QUEUE_RESOLVE_STAGGER_MS)
-                    }
-                }
-            }
-        }
+        job = null
     }
 
     /**
