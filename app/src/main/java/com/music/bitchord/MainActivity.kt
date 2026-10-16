@@ -61,6 +61,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.material.icons.Icons
@@ -3998,11 +3999,15 @@ private fun BitChordApp(
                 // no longer what moves the player. The player draws its own,
                 // off where the player actually is — see the content below.
                 scrimColor = if (reducePlayerMotion) BottomSheetDefaults.ScrimColor else Color.Transparent,
-                // The player fills the screen and paints its own background to
-                // the very top, so the sheet's default 28.dp top corners would
-                // only cut two notches out of the artwork behind the status bar.
-                // Square, and not clipped along its top — see [PlayerSheetShape].
-                shape = PlayerSheetShape,
+                // Keep the full-screen square sheet for normal motion, where
+                // the artwork docks to the mini-player. Reduced motion uses a
+                // subtle top radius so its shorter, standard sheet entrance
+                // still has a soft edge without adding another animation.
+                shape = if (reducePlayerMotion) {
+                    RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                } else {
+                    PlayerSheetShape
+                },
                 containerColor = Color.Transparent,
                 dragHandle = null,
                 contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
@@ -4040,6 +4045,19 @@ private fun BitChordApp(
                         // Where the app is holding the player, if it is — see
                         // [PlayerSheetMotion.contentOffsetPx]. Placement only.
                         .offset { IntOffset(0, playerSheetMotion.contentOffsetPx()) }
+                        // Reduced motion keeps the standard sheet movement, but
+                        // softens only its first and last few pixels of travel.
+                        // The same short fade reveals it from the bottom and lets
+                        // it dissolve as it is about to close, without a second
+                        // animation clock or changing the regular motion path.
+                        .graphicsLayer {
+                            alpha = if (reducePlayerMotion) {
+                                (playerDock.openFraction() / REDUCED_PLAYER_FADE_FRACTION)
+                                    .coerceIn(0f, 1f)
+                            } else {
+                                1f
+                            }
+                        }
                         // The dim behind the player, from the window's top to
                         // its bottom whatever the player's offset, and as deep
                         // as the player is open.
@@ -5451,6 +5469,9 @@ private val PLAYER_PULL_FLING_VELOCITY = 400.dp
 
 /** M3's own scrim strength, which the player's dim stands in for. */
 private const val PLAYER_SCRIM_ALPHA = 0.32f
+
+/** Only the first/last sliver of travel fades in reduced-motion mode. */
+private const val REDUCED_PLAYER_FADE_FRACTION = 0.14f
 
 /**
  * The player sheet's shape: square, as [RectangleShape] was, but reaching a
