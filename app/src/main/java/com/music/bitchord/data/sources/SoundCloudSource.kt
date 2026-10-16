@@ -75,7 +75,6 @@ class SoundCloudSource(
                 is StreamRequest.Capped -> candidates
                     .filter { it.averageBitrate in 1..request.maxKbps }
                     .maxByOrNull { it.averageBitrate }
-                    ?: candidates.minByOrNull { it.averageBitrate }
                 StreamRequest.Best, StreamRequest.Lossless -> candidates.maxByOrNull { it.averageBitrate }
             } ?: return@withContext null
             SourceStream(
