@@ -2681,6 +2681,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setSearchSource(source: SearchSource) {
         if (_searchSource.value == source) return
         _searchSource.value = source
+        if (source == SearchSource.SOUNDCLOUD) _filter.value = SearchFilter.SONGS
         _suggestions.value = emptyList()
         _typeaheadResults.value = emptyList()
         _searchScrollReset.value += 1
