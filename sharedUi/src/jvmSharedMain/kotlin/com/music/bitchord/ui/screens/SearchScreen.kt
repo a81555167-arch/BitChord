@@ -139,6 +139,8 @@ fun SearchScreen(
      * YouTube. The phone's top bar flips this; the desktop never does.
      */
     searchingLibrary: Boolean = false,
+    /** Whether results are coming from SoundCloud rather than YouTube Music. */
+    searchingSoundCloud: Boolean = false,
     /** The Library source's tracks for [query]; null while nothing is typed. */
     libraryResults: UiState<List<Song>>? = null,
     /** Files on the device are a running order to play through, not a station seed. */
@@ -224,7 +226,7 @@ fun SearchScreen(
             // they stay up for an empty or failed search too, or picking a filter
             // that finds nothing would take away the control needed to leave it.
             // They are YouTube's categories, so the Library source has none.
-            if (results != null && !suggesting && !searchingLibrary) {
+            if (results != null && !suggesting && !searchingLibrary && !searchingSoundCloud) {
                 SearchFilterTabs(filter = filter, onFilterChange = onFilterChange)
             }
         }
